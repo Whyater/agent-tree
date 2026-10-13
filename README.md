@@ -45,7 +45,11 @@ att open
 ```
 
 `att open` shows the dashboard in your browser. The menu bar app is macOS only.
-Remove it with `sh install.sh --uninstall` (your data in `~/.agent-tree` is kept).
+To remove it later (your data in `~/.agent-tree` is kept):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Whyater/agent-tree/main/install.sh | sh -s -- --uninstall
+```
 
 ### From source
 
