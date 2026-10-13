@@ -186,19 +186,21 @@ Every parent link in the tree is labelled:
   deleted). Orphans still show up, under the session root when it exists, and
   raise a flag.
 
-Things that are **inferred or unconfirmed** today:
+Things that are **inferred or unconfirmed** today (full rules in
+[docs/LINKING.md](docs/LINKING.md)):
 
-- **T3 thread → Claude session for native (non-imported) T3 threads.** See
-  [docs/LINKING.md](docs/LINKING.md) for exactly how this is matched and how
-  often it's exact on real data.
-- **T3 task rows → Codex child threads.** T3 records sub-agent tasks with an
-  agent path like `/root/critic`. When the task id is a Codex thread id the link
-  is exact; otherwise the T3 row is shown only if the thread has no transcript
-  behind it.
-- **Wrapper run → Codex session without a log header.** Falls back to a 120-second
-  start window in the same directory, labelled inferred.
+- **T3 thread → Claude session, when T3 has no session id for it.** Current T3
+  versions record one (in the resume cursor), so this fallback, which matches
+  one session in the same workspace and time window, is rarely needed.
+- **T3 task rows → Codex child threads.** Exact when the task id is a Codex
+  thread id with a rollout on disk; otherwise the T3 row is shown only if the
+  thread has no transcript behind it.
+- **Wrapper run → Codex session without a log header.** Falls back to a
+  120-second start window in the same directory, labelled inferred.
 - **Claude subagents whose spawning call is missing** attach to the session root
   as inferred (depth 1) or orphan (deeper).
+- **"Running"** means "touched in the last 10 minutes" unless the optional hooks
+  are on.
 
 ## Privacy
 

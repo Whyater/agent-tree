@@ -24,6 +24,9 @@ One line of reasoning each. Newest at the bottom of each section.
 - **T3 task rows that duplicate a transcript agent are hidden.** The transcript has better data (tokens, exact model), and showing both would make the tree look twice as big.
 - **Live T3 database is read via `immutable=1`, or a private copy when its WAL has data.** Immutable mode takes no locks but ignores un-checkpointed WAL pages; copying db and WAL to a temp dir gives a consistent read without touching the original.
 - **`~/.codex/logs_2.sqlite` is not used.** It's a debug log whose bodies can contain prompt text, and rollouts already provide timing and tokens.
+- **T3 is re-read at most every 3 minutes.** Its WAL changes constantly while the app is open and reading it means snapshotting the database; thread metadata changes slowly.
+- **One scan at a time per index, across processes.** A `flock` on `~/.agent-tree/scan.lock` keeps the CLI, the server and the app from writing the same index concurrently.
+- **Each scan stops at the file sizes it saw when it started.** Lines appended mid-scan wait for the next scan, so one scan is a consistent snapshot.
 - **Status is recomputed on every scan.** "Running" means "transcript touched in the last 10 minutes", so it can't go stale; hook events override it when enabled.
 
 ## Links
