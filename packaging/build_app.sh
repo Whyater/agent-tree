@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds "Agent Tree.app" with a bundled Python and wraps it in a .dmg.
-# No sudo, no Xcode: uses osacompile, codesign (ad-hoc), and hdiutil.
+# No sudo. Needs the Swift compiler (Xcode or its Command Line Tools); uses codesign (ad-hoc) and hdiutil.
 #
 #   packaging/build_app.sh [arm64|x86_64]     (default: this Mac's architecture)
 #
@@ -33,7 +33,8 @@ fi
 echo "Building $APP"
 rm -rf "$OUT/$ARCH"
 mkdir -p "$OUT/$ARCH"
-osacompile -s -o "$APP" packaging/applet.applescript
+# The native app (menu bar panel, desktop window, settings) is compiled from macos/Sources.
+packaging/build_menubar.sh "$APP" "$ARCH"
 RES="$APP/Contents/Resources"
 tar -xzf "$CACHE/$TARBALL" -C "$RES"           # creates $RES/python
 rm -rf "$RES/python/lib/python3.12/test" "$RES/python/lib/python3.12/idlelib" "$RES/python/lib/python3.12/tkinter" \
@@ -41,19 +42,11 @@ rm -rf "$RES/python/lib/python3.12/test" "$RES/python/lib/python3.12/idlelib" "$
        "$RES/python/lib/tcl"* "$RES/python/lib/tk"* "$RES/python/lib/itcl"* "$RES/python/lib/thread"* 2>/dev/null || true
 mkdir -p "$RES/app"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' agent_tree "$RES/app/"
-cp packaging/launcher.sh "$RES/launcher.sh"
-chmod +x "$RES/launcher.sh"
-cp packaging/AppIcon.icns "$RES/applet.icns"
+rm -rf "$RES/Fixtures"  # sample data is only for development builds
 
 PLIST="$APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleName Agent Tree" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Agent Tree" "$PLIST" 2>/dev/null || true
-/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string io.github.whyater.agent-tree" "$PLIST" 2>/dev/null \
-  || /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier io.github.whyater.agent-tree" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$PLIST" 2>/dev/null \
-  || /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 11.0" "$PLIST" 2>/dev/null || true
-/usr/libexec/PlistBuddy -c "Add :NSHumanReadableCopyright string MIT License" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$PLIST"
 
 # Smoke test the bundled interpreter before signing.
 PYTHONPATH="$RES/app" "$RES/python/bin/python3" -c "import agent_tree.cli, agent_tree.server; print('bundle ok')"

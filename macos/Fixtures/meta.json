@@ -1,0 +1,37 @@
+{
+ "version": "0.2.0",
+ "last_scan": "2026-10-13T18:00:00.000Z",
+ "scan_running": false,
+ "metadata_only": false,
+ "covered_by_plan": {
+  "anthropic": false,
+  "openai": false
+ },
+ "timezone": "America/Denver",
+ "sources": [
+  {
+   "source": "claude-code",
+   "present": true,
+   "root": "~/.claude",
+   "files": 640,
+   "lines_skipped": 3,
+   "parser_version": "cc-1"
+  },
+  {
+   "source": "codex",
+   "present": true,
+   "root": "~/.codex",
+   "files": 212,
+   "lines_skipped": 0,
+   "parser_version": "cx-1"
+  },
+  {
+   "source": "t3",
+   "present": true,
+   "root": "~/.t3",
+   "files": 48,
+   "lines_skipped": 0,
+   "parser_version": "t3-1"
+  }
+ ]
+}

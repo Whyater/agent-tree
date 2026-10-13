@@ -1,0 +1,52 @@
+{
+ "running": [
+  {
+   "thread_id": "t3:9f2c41",
+   "title": "Build and Publish Agent Tree Tracker",
+   "project_name": "agent-tracker-tree",
+   "model": "claude-opus-5-5",
+   "family": "anthropic",
+   "started": "2026-10-13T14:57:32.000Z",
+   "last_activity": "2026-10-13T17:59:55.000Z",
+   "agents_running": 3,
+   "tokens": {
+    "input": 68401,
+    "cached_input": 11058000,
+    "cache_write": 205199,
+    "output": 68400,
+    "reasoning": 20520,
+    "total": 11400000
+   },
+   "money": {
+    "cost": 1.42,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "active_since": "2026-10-13T17:57:32.000Z"
+  },
+  {
+   "thread_id": "cx:e4f5a6",
+   "title": "Backend endpoints for limits",
+   "project_name": "agent-tracker-tree",
+   "model": "gpt-6.1-sol",
+   "family": "openai",
+   "started": "2026-10-13T14:52:57.000Z",
+   "last_activity": "2026-10-13T17:59:40.000Z",
+   "agents_running": 1,
+   "tokens": {
+    "input": 13800,
+    "cached_input": 2231000,
+    "cache_write": 41400,
+    "output": 13800,
+    "reasoning": 4140,
+    "total": 2300000
+   },
+   "money": {
+    "cost": 0.38,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "active_since": "2026-10-13T17:52:57.000Z"
+  }
+ ]
+}

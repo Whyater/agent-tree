@@ -1,0 +1,156 @@
+{
+ "total": 4,
+ "threads": [
+  {
+   "id": "t3:9f2c41",
+   "source": "t3",
+   "title": "Build and publish Agent Tree",
+   "project_path": "/Users/me/Projects/agent-tracker-tree",
+   "project_name": "agent-tracker-tree",
+   "started": "2026-10-13T17:46:00.000Z",
+   "ended": "2026-10-13T17:59:00.000Z",
+   "wall_ms": 780000,
+   "node_count": 23,
+   "max_depth": 3,
+   "tokens": {
+    "input": 830400,
+    "cached_input": 134248000,
+    "cache_write": 2491200,
+    "output": 830400,
+    "reasoning": 249120,
+    "total": 138400000
+   },
+   "money": {
+    "cost": 61.42,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "claude-opus-5-5",
+    "gpt-6.1-sol",
+    "gpt-6-luna"
+   ],
+   "families": [
+    "anthropic",
+    "openai"
+   ],
+   "flag_count": 2,
+   "sources": [
+    "t3",
+    "claude-code",
+    "codex"
+   ],
+   "t3_title": "Build and Publish Agent Tree Tracker"
+  },
+  {
+   "id": "cc:6d4f0a",
+   "source": "claude-code",
+   "title": "Hourly forecast cache",
+   "project_path": "/Users/me/Projects/weather-station",
+   "project_name": "weather-station",
+   "started": "2026-10-13T16:25:00.000Z",
+   "ended": "2026-10-13T17:17:00.000Z",
+   "wall_ms": 3120000,
+   "node_count": 25,
+   "max_depth": 4,
+   "tokens": {
+    "input": 247200,
+    "cached_input": 39964000,
+    "cache_write": 741600,
+    "output": 247200,
+    "reasoning": 74160,
+    "total": 41200000
+   },
+   "money": {
+    "cost": 18.07,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "claude-opus-5-5"
+   ],
+   "families": [
+    "anthropic"
+   ],
+   "flag_count": 0,
+   "sources": [
+    "claude-code"
+   ],
+   "t3_title": null
+  },
+  {
+   "id": "cx:a1b2c3",
+   "source": "claude-code",
+   "title": "Inverse kinematics solver tests",
+   "project_path": "/Users/me/Projects/robot-arm-sim",
+   "project_name": "robot-arm-sim",
+   "started": "2026-10-13T14:00:00.000Z",
+   "ended": "2026-10-13T15:11:00.000Z",
+   "wall_ms": 4260000,
+   "node_count": 40,
+   "max_depth": 4,
+   "tokens": {
+    "input": 137401,
+    "cached_input": 22213000,
+    "cache_write": 412199,
+    "output": 137400,
+    "reasoning": 41220,
+    "total": 22900000
+   },
+   "money": {
+    "cost": 4.88,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "families": [
+    "openai"
+   ],
+   "flag_count": 0,
+   "sources": [
+    "codex"
+   ],
+   "t3_title": null
+  },
+  {
+   "id": "t3:77e0d2",
+   "source": "t3",
+   "title": "Portfolio redesign",
+   "project_path": "/Users/me/Projects/portfolio-site",
+   "project_name": "portfolio-site",
+   "started": "2026-10-13T04:20:00.000Z",
+   "ended": "2026-10-13T05:56:00.000Z",
+   "wall_ms": 5760000,
+   "node_count": 7,
+   "max_depth": 1,
+   "tokens": {
+    "input": 384000,
+    "cached_input": 62080000,
+    "cache_write": 1152000,
+    "output": 384000,
+    "reasoning": 115200,
+    "total": 64000000
+   },
+   "money": {
+    "cost": 27.35,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "claude-opus-5-5",
+    "claude-sonnet-5"
+   ],
+   "families": [
+    "anthropic"
+   ],
+   "flag_count": 1,
+   "sources": [
+    "t3",
+    "claude-code"
+   ],
+   "t3_title": "Portfolio Redesign"
+  }
+ ]
+}

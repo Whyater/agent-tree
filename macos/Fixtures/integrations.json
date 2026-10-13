@@ -1,0 +1,19 @@
+{
+ "claude": {
+  "installed": true,
+  "connected": false,
+  "statusline": "none",
+  "hooks": "none",
+  "settings_path": "~/.claude/settings.json",
+  "preview": "Adds a status line and two hooks to ~/.claude/settings.json so Agent Tree sees Claude plan limits and live activity.\n\n{\n  \"statusLine\": {\"type\": \"command\", \"command\": \"PYTHONPATH=\\\"/Applications/Agent Tree.app/Contents/Resources/app\\\" \\\"/Applications/Agent Tree.app/Contents/Resources/python/bin/python3\\\" -m agent_tree.statusline\"}\n}"
+ },
+ "codex": {
+  "installed": true
+ },
+ "t3": {
+  "installed": true
+ },
+ "vorssaint": {
+  "installed": true
+ }
+}

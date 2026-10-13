@@ -1,0 +1,28 @@
+{
+ "checks": [
+  {
+   "id": "t3-usage",
+   "label": "Token totals vs T3 Code",
+   "status": "match",
+   "detail": "641 of 641 transcripts agree",
+   "compared": 641,
+   "matched": 641
+  },
+  {
+   "id": "vorssaint-limits",
+   "label": "Plan limits vs Vorssaint",
+   "status": "match",
+   "detail": "Claude and Codex percentages agree within 1 point",
+   "compared": 2,
+   "matched": 2
+  },
+  {
+   "id": "codex-totals",
+   "label": "Codex token counters",
+   "status": "unavailable",
+   "detail": "Codex has no usage summary to compare against",
+   "compared": 0,
+   "matched": 0
+  }
+ ]
+}

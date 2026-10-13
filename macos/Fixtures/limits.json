@@ -1,0 +1,55 @@
+{
+ "providers": [
+  {
+   "provider": "claude",
+   "available": true,
+   "plan": "max_20x",
+   "as_of": "2026-10-13T17:58:00.000Z",
+   "stale": false,
+   "source": "Claude app usage history",
+   "reason": null,
+   "windows": [
+    {
+     "id": "five_hour",
+     "label": "Session",
+     "used_percent": 64.0,
+     "window_minutes": 300,
+     "resets_at": "2026-10-13T19:47:00.000Z"
+    },
+    {
+     "id": "seven_day",
+     "label": "Week",
+     "used_percent": 48.0,
+     "window_minutes": 10080,
+     "resets_at": "2026-10-14T06:47:00.000Z",
+     "resets_estimated": true
+    }
+   ]
+  },
+  {
+   "provider": "codex",
+   "available": true,
+   "plan": "prolite",
+   "as_of": "2026-10-13T17:51:00.000Z",
+   "stale": false,
+   "source": "Codex session logs",
+   "reason": null,
+   "windows": [
+    {
+     "id": "five_hour",
+     "label": "Session",
+     "used_percent": 21.0,
+     "window_minutes": 300,
+     "resets_at": "2026-10-13T21:12:00.000Z"
+    },
+    {
+     "id": "seven_day",
+     "label": "Week",
+     "used_percent": 83.0,
+     "window_minutes": 10080,
+     "resets_at": "2026-10-20T05:00:00.000Z"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1127 @@
+{
+ "periods": {
+  "today": {
+   "tokens": {
+    "input": -2218300,
+    "cached_input": 543483862,
+    "cache_write": 9982356,
+    "output": 3327452,
+    "reasoning": 998235,
+    "total": 554575370
+   },
+   "money": {
+    "cost": 239.18,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "nodes": 37,
+   "threads": 4,
+   "by_family": [
+    {
+     "family": "anthropic",
+     "tokens": {
+      "input": -1731563,
+      "cached_input": 424233395,
+      "cache_write": 7792041,
+      "output": 2597347,
+      "reasoning": 779204,
+      "total": 432891220
+     },
+     "money": {
+      "cost": 224.96,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "family": "openai",
+     "tokens": {
+      "input": 3163790,
+      "cached_input": 115599942,
+      "cache_write": 2190314,
+      "output": 730104,
+      "reasoning": 219031,
+      "total": 121684150
+     },
+     "money": {
+      "cost": 14.23,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    }
+   ],
+   "by_model": [
+    {
+     "model": "claude-opus-5-5",
+     "family": "anthropic",
+     "tokens": {
+      "input": -1419882,
+      "cached_input": 347871384,
+      "cache_write": 6389474,
+      "output": 2129824,
+      "reasoning": 638947,
+      "total": 354970800
+     },
+     "money": {
+      "cost": 202.46,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "claude-sonnet-5",
+     "family": "anthropic",
+     "tokens": {
+      "input": -311680,
+      "cached_input": 76362010,
+      "cache_write": 1402567,
+      "output": 467522,
+      "reasoning": 140256,
+      "total": 77920419
+     },
+     "money": {
+      "cost": 22.5,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "family": "openai",
+     "tokens": {
+      "input": 2214653,
+      "cached_input": 80919959,
+      "cache_write": 1533220,
+      "output": 511073,
+      "reasoning": 153321,
+      "total": 85178905
+     },
+     "money": {
+      "cost": 11.38,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "gpt-6-luna",
+     "family": "openai",
+     "tokens": {
+      "input": 949138,
+      "cached_input": 34679982,
+      "cache_write": 657094,
+      "output": 219031,
+      "reasoning": 65709,
+      "total": 36505245
+     },
+     "money": {
+      "cost": 2.85,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    }
+   ]
+  },
+  "week": {
+   "tokens": {
+    "input": -11149889,
+    "cached_input": 2731723058,
+    "cache_write": 50174505,
+    "output": 16724835,
+    "reasoning": 5017450,
+    "total": 2787472509
+   },
+   "money": {
+    "cost": 1173.36,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "nodes": 259,
+   "threads": 28,
+   "by_family": [
+    {
+     "family": "anthropic",
+     "tokens": {
+      "input": -8416810,
+      "cached_input": 2062118876,
+      "cache_write": 37875652,
+      "output": 12625217,
+      "reasoning": 3787565,
+      "total": 2104202935
+     },
+     "money": {
+      "cost": 1093.47,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "family": "openai",
+     "tokens": {
+      "input": 17765010,
+      "cached_input": 649106095,
+      "cache_write": 12298852,
+      "output": 4099617,
+      "reasoning": 1229885,
+      "total": 683269574
+     },
+     "money": {
+      "cost": 79.89,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    }
+   ],
+   "by_model": [
+    {
+     "model": "claude-opus-5-5",
+     "family": "anthropic",
+     "tokens": {
+      "input": -6901784,
+      "cached_input": 1690937477,
+      "cache_write": 31058035,
+      "output": 10352678,
+      "reasoning": 3105803,
+      "total": 1725446406
+     },
+     "money": {
+      "cost": 984.12,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "claude-sonnet-5",
+     "family": "anthropic",
+     "tokens": {
+      "input": -1515025,
+      "cached_input": 371181397,
+      "cache_write": 6817617,
+      "output": 2272539,
+      "reasoning": 681761,
+      "total": 378756528
+     },
+     "money": {
+      "cost": 109.35,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "family": "openai",
+     "tokens": {
+      "input": 12435508,
+      "cached_input": 454374265,
+      "cache_write": 8609196,
+      "output": 2869732,
+      "reasoning": 860919,
+      "total": 478288701
+     },
+     "money": {
+      "cost": 63.91,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "gpt-6-luna",
+     "family": "openai",
+     "tokens": {
+      "input": 5329504,
+      "cached_input": 194731828,
+      "cache_write": 3689655,
+      "output": 1229885,
+      "reasoning": 368965,
+      "total": 204980872
+     },
+     "money": {
+      "cost": 15.98,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    }
+   ]
+  },
+  "month": {
+   "tokens": {
+    "input": -41957256,
+    "cached_input": 10279528358,
+    "cache_write": 188807663,
+    "output": 62935887,
+    "reasoning": 18880766,
+    "total": 10489314652
+   },
+   "money": {
+    "cost": 4521.0,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "nodes": 1110,
+   "threads": 120,
+   "by_family": [
+    {
+     "family": "anthropic",
+     "tokens": {
+      "input": -32721806,
+      "cached_input": 8016842952,
+      "cache_write": 147248135,
+      "output": 49082711,
+      "reasoning": 14724813,
+      "total": 8180451992
+     },
+     "money": {
+      "cost": 4251.04,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "family": "openai",
+     "tokens": {
+      "input": 60030431,
+      "cached_input": 2193419527,
+      "cache_write": 41559527,
+      "output": 13853175,
+      "reasoning": 4155952,
+      "total": 2308862660
+     },
+     "money": {
+      "cost": 269.96,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    }
+   ],
+   "by_model": [
+    {
+     "model": "claude-opus-5-5",
+     "family": "anthropic",
+     "tokens": {
+      "input": -26831881,
+      "cached_input": 6573811220,
+      "cache_write": 120743471,
+      "output": 40247823,
+      "reasoning": 12074346,
+      "total": 6707970633
+     },
+     "money": {
+      "cost": 3825.94,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "claude-sonnet-5",
+     "family": "anthropic",
+     "tokens": {
+      "input": -5889924,
+      "cached_input": 1443031730,
+      "cache_write": 26504664,
+      "output": 8834888,
+      "reasoning": 2650466,
+      "total": 1472481358
+     },
+     "money": {
+      "cost": 425.1,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "family": "openai",
+     "tokens": {
+      "input": 42021302,
+      "cached_input": 1535393668,
+      "cache_write": 29091669,
+      "output": 9697223,
+      "reasoning": 2909166,
+      "total": 1616203862
+     },
+     "money": {
+      "cost": 215.97,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    },
+    {
+     "model": "gpt-6-luna",
+     "family": "openai",
+     "tokens": {
+      "input": 18009130,
+      "cached_input": 658025858,
+      "cache_write": 12467858,
+      "output": 4155952,
+      "reasoning": 1246785,
+      "total": 692658798
+     },
+     "money": {
+      "cost": 53.99,
+      "cost_known": true,
+      "covered_cost": 0.0
+     }
+    }
+   ]
+  }
+ },
+ "daily": [
+  {
+   "day": "2026-09-14",
+   "tokens": {
+    "input": 1943726,
+    "cached_input": 314235369,
+    "cache_write": 5831171,
+    "output": 1943723,
+    "reasoning": 583116,
+    "total": 323953989
+   },
+   "money": {
+    "cost": 146.54,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 269818122,
+    "openai": 54135867
+   }
+  },
+  {
+   "day": "2026-09-15",
+   "tokens": {
+    "input": 2594614,
+    "cached_input": 419462493,
+    "cache_write": 7783840,
+    "output": 2594613,
+    "reasoning": 778383,
+    "total": 432435560
+   },
+   "money": {
+    "cost": 207.97,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 390845755,
+    "openai": 41589805
+   }
+  },
+  {
+   "day": "2026-09-16",
+   "tokens": {
+    "input": 2620721,
+    "cached_input": 423682969,
+    "cache_write": 7862158,
+    "output": 2620719,
+    "reasoning": 786215,
+    "total": 436786567
+   },
+   "money": {
+    "cost": 191.33,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 348276341,
+    "openai": 88510226
+   }
+  },
+  {
+   "day": "2026-09-17",
+   "tokens": {
+    "input": 154316,
+    "cached_input": 24947371,
+    "cache_write": 462940,
+    "output": 154313,
+    "reasoning": 46293,
+    "total": 25718940
+   },
+   "money": {
+    "cost": 13.37,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 25718940,
+    "openai": 0
+   }
+  },
+  {
+   "day": "2026-09-18",
+   "tokens": {
+    "input": 147487,
+    "cached_input": 23843577,
+    "cache_write": 442458,
+    "output": 147486,
+    "reasoning": 44245,
+    "total": 24581008
+   },
+   "money": {
+    "cost": 12.77,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 24581008,
+    "openai": 0
+   }
+  },
+  {
+   "day": "2026-09-19",
+   "tokens": {
+    "input": 608330,
+    "cached_input": 98346329,
+    "cache_write": 1824983,
+    "output": 608327,
+    "reasoning": 182498,
+    "total": 101387969
+   },
+   "money": {
+    "cost": 43.72,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 79130928,
+    "openai": 22257041
+   }
+  },
+  {
+   "day": "2026-09-20",
+   "tokens": {
+    "input": 1315985,
+    "cached_input": 212750694,
+    "cache_write": 3947951,
+    "output": 1315983,
+    "reasoning": 394794,
+    "total": 219330613
+   },
+   "money": {
+    "cost": 81.3,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 138182444,
+    "openai": 81148169
+   }
+  },
+  {
+   "day": "2026-09-21",
+   "tokens": {
+    "input": 1569151,
+    "cached_input": 253679210,
+    "cache_write": 4707449,
+    "output": 1569149,
+    "reasoning": 470744,
+    "total": 261524959
+   },
+   "money": {
+    "cost": 109.44,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 195806725,
+    "openai": 65718234
+   }
+  },
+  {
+   "day": "2026-09-22",
+   "tokens": {
+    "input": 3382704,
+    "cached_input": 546870210,
+    "cache_write": 10148106,
+    "output": 3382702,
+    "reasoning": 1014810,
+    "total": 563783722
+   },
+   "money": {
+    "cost": 219.82,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 382150292,
+    "openai": 181633430
+   }
+  },
+  {
+   "day": "2026-09-23",
+   "tokens": {
+    "input": 2741983,
+    "cached_input": 443287056,
+    "cache_write": 8225945,
+    "output": 2741981,
+    "reasoning": 822594,
+    "total": 456996965
+   },
+   "money": {
+    "cost": 199.84,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 363528090,
+    "openai": 93468875
+   }
+  },
+  {
+   "day": "2026-09-24",
+   "tokens": {
+    "input": 3292007,
+    "cached_input": 532207588,
+    "cache_write": 9876017,
+    "output": 3292005,
+    "reasoning": 987601,
+    "total": 548667617
+   },
+   "money": {
+    "cost": 270.04,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 511214389,
+    "openai": 37453228
+   }
+  },
+  {
+   "day": "2026-09-25",
+   "tokens": {
+    "input": 3263827,
+    "cached_input": 527651689,
+    "cache_write": 9791474,
+    "output": 3263824,
+    "reasoning": 979147,
+    "total": 543970814
+   },
+   "money": {
+    "cost": 251.94,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 467633329,
+    "openai": 76337485
+   }
+  },
+  {
+   "day": "2026-09-26",
+   "tokens": {
+    "input": 695652,
+    "cached_input": 112463594,
+    "cache_write": 2086953,
+    "output": 695651,
+    "reasoning": 208695,
+    "total": 115941850
+   },
+   "money": {
+    "cost": 50.41,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 91518471,
+    "openai": 24423379
+   }
+  },
+  {
+   "day": "2026-09-27",
+   "tokens": {
+    "input": 1194916,
+    "cached_input": 193177761,
+    "cache_write": 3584741,
+    "output": 1194913,
+    "reasoning": 358473,
+    "total": 199152331
+   },
+   "money": {
+    "cost": 71.16,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 118862223,
+    "openai": 80290108
+   }
+  },
+  {
+   "day": "2026-09-28",
+   "tokens": {
+    "input": 2039550,
+    "cached_input": 329727042,
+    "cache_write": 6118646,
+    "output": 2039548,
+    "reasoning": 611864,
+    "total": 339924786
+   },
+   "money": {
+    "cost": 127.09,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 216868760,
+    "openai": 123056026
+   }
+  },
+  {
+   "day": "2026-09-29",
+   "tokens": {
+    "input": 2855891,
+    "cached_input": 461702141,
+    "cache_write": 8567668,
+    "output": 2855889,
+    "reasoning": 856766,
+    "total": 475981589
+   },
+   "money": {
+    "cost": 211.27,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 386397983,
+    "openai": 89583606
+   }
+  },
+  {
+   "day": "2026-09-30",
+   "tokens": {
+    "input": 2356271,
+    "cached_input": 380930336,
+    "cache_write": 7068810,
+    "output": 2356270,
+    "reasoning": 706881,
+    "total": 392711687
+   },
+   "money": {
+    "cost": 187.95,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 352665452,
+    "openai": 40046235
+   }
+  },
+  {
+   "day": "2026-10-01",
+   "tokens": {
+    "input": 1410037,
+    "cached_input": 227955651,
+    "cache_write": 4230104,
+    "output": 1410034,
+    "reasoning": 423010,
+    "total": 235005826
+   },
+   "money": {
+    "cost": 96.77,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 172052432,
+    "openai": 62953394
+   }
+  },
+  {
+   "day": "2026-10-02",
+   "tokens": {
+    "input": 3000978,
+    "cached_input": 485157875,
+    "cache_write": 9002929,
+    "output": 3000976,
+    "reasoning": 900292,
+    "total": 500162758
+   },
+   "money": {
+    "cost": 220.28,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 401747990,
+    "openai": 98414768
+   }
+  },
+  {
+   "day": "2026-10-03",
+   "tokens": {
+    "input": 1089904,
+    "cached_input": 176200938,
+    "cache_write": 3269708,
+    "output": 1089902,
+    "reasoning": 326970,
+    "total": 181650452
+   },
+   "money": {
+    "cost": 69.49,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 119805503,
+    "openai": 61844949
+   }
+  },
+  {
+   "day": "2026-10-04",
+   "tokens": {
+    "input": 1091620,
+    "cached_input": 176478460,
+    "cache_write": 3274858,
+    "output": 1091619,
+    "reasoning": 327485,
+    "total": 181936557
+   },
+   "money": {
+    "cost": 78.85,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 142955198,
+    "openai": 38981359
+   }
+  },
+  {
+   "day": "2026-10-05",
+   "tokens": {
+    "input": 3514558,
+    "cached_input": 568186731,
+    "cache_write": 10543671,
+    "output": 3514557,
+    "reasoning": 1054367,
+    "total": 585759517
+   },
+   "money": {
+    "cost": 247.27,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 443920408,
+    "openai": 141839109
+   }
+  },
+  {
+   "day": "2026-10-06",
+   "tokens": {
+    "input": 3326858,
+    "cached_input": 537841784,
+    "cache_write": 9980569,
+    "output": 3326856,
+    "reasoning": 998056,
+    "total": 554476067
+   },
+   "money": {
+    "cost": 239.04,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 432568274,
+    "openai": 121907793
+   }
+  },
+  {
+   "day": "2026-10-07",
+   "tokens": {
+    "input": 3086070,
+    "cached_input": 498914363,
+    "cache_write": 9258204,
+    "output": 3086068,
+    "reasoning": 925820,
+    "total": 514344705
+   },
+   "money": {
+    "cost": 198.81,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 344322706,
+    "openai": 170021999
+   }
+  },
+  {
+   "day": "2026-10-08",
+   "tokens": {
+    "input": 2975790,
+    "cached_input": 481085855,
+    "cache_write": 8927366,
+    "output": 2975788,
+    "reasoning": 892736,
+    "total": 495964799
+   },
+   "money": {
+    "cost": 227.1,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 419894757,
+    "openai": 76070042
+   }
+  },
+  {
+   "day": "2026-10-09",
+   "tokens": {
+    "input": 3369333,
+    "cached_input": 544708560,
+    "cache_write": 10107993,
+    "output": 3369331,
+    "reasoning": 1010799,
+    "total": 561555217
+   },
+   "money": {
+    "cost": 272.13,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 512664693,
+    "openai": 48890524
+   }
+  },
+  {
+   "day": "2026-10-10",
+   "tokens": {
+    "input": 1276133,
+    "cached_input": 206308061,
+    "cache_write": 3828397,
+    "output": 1276132,
+    "reasoning": 382839,
+    "total": 212688723
+   },
+   "money": {
+    "cost": 80.09,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 137117449,
+    "openai": 75571274
+   }
+  },
+  {
+   "day": "2026-10-11",
+   "tokens": {
+    "input": 881537,
+    "cached_input": 142514798,
+    "cache_write": 2644604,
+    "output": 881534,
+    "reasoning": 264460,
+    "total": 146922473
+   },
+   "money": {
+    "cost": 54.55,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 92805425,
+    "openai": 54117048
+   }
+  },
+  {
+   "day": "2026-10-12",
+   "tokens": {
+    "input": 1808529,
+    "cached_input": 292378585,
+    "cache_write": 5425581,
+    "output": 1808527,
+    "reasoning": 542558,
+    "total": 301421222
+   },
+   "money": {
+    "cost": 101.5,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 164506685,
+    "openai": 136914537
+   }
+  },
+  {
+   "day": "2026-10-13",
+   "tokens": {
+    "input": 3327454,
+    "cached_input": 537938108,
+    "cache_write": 9982356,
+    "output": 3327452,
+    "reasoning": 998235,
+    "total": 554575370
+   },
+   "money": {
+    "cost": 239.18,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "by_family": {
+    "anthropic": 432891220,
+    "openai": 121684150
+   }
+  }
+ ],
+ "top_threads": [
+  {
+   "id": "t3:9f2c41",
+   "source": "t3",
+   "title": "Build and publish Agent Tree",
+   "project_path": "/Users/me/Projects/agent-tracker-tree",
+   "project_name": "agent-tracker-tree",
+   "started": "2026-10-13T17:46:00.000Z",
+   "ended": "2026-10-13T17:59:00.000Z",
+   "wall_ms": 780000,
+   "node_count": 23,
+   "max_depth": 3,
+   "tokens": {
+    "input": 830400,
+    "cached_input": 134248000,
+    "cache_write": 2491200,
+    "output": 830400,
+    "reasoning": 249120,
+    "total": 138400000
+   },
+   "money": {
+    "cost": 61.42,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "claude-opus-5-5",
+    "gpt-6.1-sol",
+    "gpt-6-luna"
+   ],
+   "families": [
+    "anthropic",
+    "openai"
+   ],
+   "flag_count": 2,
+   "sources": [
+    "t3",
+    "claude-code",
+    "codex"
+   ],
+   "t3_title": "Build and Publish Agent Tree Tracker"
+  },
+  {
+   "id": "t3:77e0d2",
+   "source": "t3",
+   "title": "Portfolio redesign",
+   "project_path": "/Users/me/Projects/portfolio-site",
+   "project_name": "portfolio-site",
+   "started": "2026-10-13T04:20:00.000Z",
+   "ended": "2026-10-13T05:56:00.000Z",
+   "wall_ms": 5760000,
+   "node_count": 7,
+   "max_depth": 1,
+   "tokens": {
+    "input": 384000,
+    "cached_input": 62080000,
+    "cache_write": 1152000,
+    "output": 384000,
+    "reasoning": 115200,
+    "total": 64000000
+   },
+   "money": {
+    "cost": 27.35,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "claude-opus-5-5",
+    "claude-sonnet-5"
+   ],
+   "families": [
+    "anthropic"
+   ],
+   "flag_count": 1,
+   "sources": [
+    "t3",
+    "claude-code"
+   ],
+   "t3_title": "Portfolio Redesign"
+  },
+  {
+   "id": "cc:6d4f0a",
+   "source": "claude-code",
+   "title": "Hourly forecast cache",
+   "project_path": "/Users/me/Projects/weather-station",
+   "project_name": "weather-station",
+   "started": "2026-10-13T16:25:00.000Z",
+   "ended": "2026-10-13T17:17:00.000Z",
+   "wall_ms": 3120000,
+   "node_count": 25,
+   "max_depth": 4,
+   "tokens": {
+    "input": 247200,
+    "cached_input": 39964000,
+    "cache_write": 741600,
+    "output": 247200,
+    "reasoning": 74160,
+    "total": 41200000
+   },
+   "money": {
+    "cost": 18.07,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "claude-opus-5-5"
+   ],
+   "families": [
+    "anthropic"
+   ],
+   "flag_count": 0,
+   "sources": [
+    "claude-code"
+   ],
+   "t3_title": null
+  },
+  {
+   "id": "cx:a1b2c3",
+   "source": "claude-code",
+   "title": "Inverse kinematics solver tests",
+   "project_path": "/Users/me/Projects/robot-arm-sim",
+   "project_name": "robot-arm-sim",
+   "started": "2026-10-13T14:00:00.000Z",
+   "ended": "2026-10-13T15:11:00.000Z",
+   "wall_ms": 4260000,
+   "node_count": 40,
+   "max_depth": 4,
+   "tokens": {
+    "input": 137401,
+    "cached_input": 22213000,
+    "cache_write": 412199,
+    "output": 137400,
+    "reasoning": 41220,
+    "total": 22900000
+   },
+   "money": {
+    "cost": 4.88,
+    "cost_known": true,
+    "covered_cost": 0.0
+   },
+   "models": [
+    "gpt-6.1-sol"
+   ],
+   "families": [
+    "openai"
+   ],
+   "flag_count": 0,
+   "sources": [
+    "codex"
+   ],
+   "t3_title": null
+  }
+ ],
+ "flag_count": 7,
+ "flag_counts": {
+  "alert": 0,
+  "warn": 7
+ }
+}
