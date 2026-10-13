@@ -288,7 +288,8 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
         had_token_count = bool(state.get("seen_token_count"))
         token_record_count = 0
         try:
-            for line_offset, obj in iter_jsonl(cur):
+            # response_item lines hold message and tool content we never use; don't decode them.
+            for line_offset, obj in iter_jsonl(cur, skip_markers=(b'"type":"response_item"',)):
                 obj_type, payload = obj.get("type"), obj.get("payload")
                 if not first_meta_seen:
                     if obj_type == "session_meta" and isinstance(payload, dict):

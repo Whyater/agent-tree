@@ -87,7 +87,7 @@ def save_cursor(conn: sqlite3.Connection, cur: FileCursor, source: str, parser_v
     )
 
 
-def iter_jsonl(cur: FileCursor) -> Iterator[tuple[int, Any]]:
+def iter_jsonl(cur: FileCursor, skip_markers: tuple[bytes, ...] = ()) -> Iterator[tuple[int, Any]]:
     """Stream complete lines from ``cur.offset`` and yield ``(line_offset, obj)``.
 
     - Never loads the whole file; reads line by line in binary mode.
@@ -97,6 +97,10 @@ def iter_jsonl(cur: FileCursor) -> Iterator[tuple[int, Any]]:
       ``cur.skipped_lines`` and skipped.
     - ``cur.offset`` advances as lines are consumed, so callers persist it with
       ``save_cursor`` when they are done.
+    - ``skip_markers``: lines whose first 200 bytes contain one of these are
+      counted as read but never decoded (e.g. bulky record types a parser
+      ignores). The check only looks at the start of the line, where JSONL
+      writers put the type, so message text can't trigger it.
     """
     if is_secret_path(cur.path):
         return
@@ -113,6 +117,11 @@ def iter_jsonl(cur: FileCursor) -> Iterator[tuple[int, Any]]:
             stripped = raw.strip()
             if not stripped:
                 continue
+            if skip_markers:
+                head = stripped[:200]
+                if any(m in head for m in skip_markers):
+                    cur.parsed_lines += 1
+                    continue
             try:
                 obj = json.loads(stripped)
             except (ValueError, UnicodeDecodeError):

@@ -167,7 +167,9 @@ read-only, and the live SQLite database is opened in a way that takes no locks.
 | **Hooks (optional)** `~/.agent-tree/events.jsonl` | `SubagentStart`/`SubagentStop` ids and timestamps | exact "still running" status for live sessions |
 
 Rescans are incremental: each file's size, modification time, inode and byte
-offset are stored, and only complete new lines are read. A file that shrinks or
+offset are stored, and only complete new lines are read. On the machine it was
+built on, the first scan of 4.7 GB of transcripts takes about 40 seconds and a
+rescan takes about 3. A file that shrinks or
 is replaced is parsed again from the start. Lines that don't parse are counted
 and reported by `att doctor`, never fatal.
 

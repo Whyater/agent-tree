@@ -1,8 +1,13 @@
 name: release
 
+# Builds the .dmg files for an existing release tag. Run it from the Actions tab
+# (or build locally with packaging/build_app.sh and upload by hand).
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the disk images to, e.g. v0.1.0"
+        required: true
 
 permissions:
   contents: write
@@ -19,6 +24,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - name: Build app and disk image
         run: packaging/build_app.sh ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
@@ -38,6 +45,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "${{ inputs.tag }}" --repo "$GITHUB_REPOSITORY" --title "${{ inputs.tag }}" --generate-notes
+          gh release upload "${{ inputs.tag }}" dist/* --repo "$GITHUB_REPOSITORY" --clobber
