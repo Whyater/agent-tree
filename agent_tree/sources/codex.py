@@ -21,7 +21,7 @@ from .base import (
     save_cursor,
 )
 
-PARSER_VERSION = "cx-1"
+PARSER_VERSION = "cx-4"
 SOURCE = "codex"
 _TOTAL_FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
 
@@ -209,16 +209,43 @@ def _saved_totals(conn: sqlite3.Connection, paths: list[Path]) -> dict[str, list
     return result
 
 
+def _saved_last_totals(conn: sqlite3.Connection) -> dict[str, list[tuple[str, dict[str, int]]]]:
+    """thread id -> [(path, final cumulative totals)] from earlier scans."""
+    result: dict[str, list[tuple[str, dict[str, int]]]] = {}
+    for row in conn.execute("SELECT path, state_json FROM files WHERE source=?", (SOURCE,)):
+        try:
+            saved = json.loads(row[1]) if row[1] else {}
+        except (TypeError, ValueError):
+            continue
+        if saved.get("thread_id") and saved.get("seen_token_count"):
+            result.setdefault(str(saved["thread_id"]), []).append((row[0], _totals(saved.get("last_total"))))
+    return result
+
+
+def _is_continuation(path: Path, thread_id: str) -> bool:
+    """Long Codex threads continue in rollout-...-<id>_<suffix>.jsonl, with the
+    cumulative token counter carrying on from the previous file."""
+    return f"{thread_id}_" in path.name
+
+
 def _has_other_larger(seen: dict[str, list[tuple[str, int | None]]], thread_id: str, path: Path, total: int | None) -> bool:
     return total is not None and any(other != str(path) and value is not None and value >= total for other, value in seen.get(thread_id, []))
 
 
 def _merge_cumulative(previous: dict[str, int], raw: Any) -> tuple[dict[str, int], dict[str, int], bool]:
+    """Turn a cumulative total into the change since the previous one.
+
+    Codex counters occasionally step back by a few tokens (seen at continuation
+    file boundaries). Only a large drop (total below half the previous one) is
+    a real reset that starts a new baseline; a small dip is recorded as a small
+    negative change, so the rows always sum exactly to the last reported total.
+    """
     source = raw if isinstance(raw, dict) else {}
     current = {key: as_int(source[key]) if key in source else previous.get(key, 0) for key in _TOTAL_FIELDS}
-    reset = any(current[key] < previous.get(key, 0) for key in _TOTAL_FIELDS if key in source)
-    delta = dict(current) if reset else {key: current[key] - previous.get(key, 0) for key in _TOTAL_FIELDS}
-    return current, delta, reset
+    prev_total = previous.get("total_tokens", 0)
+    if prev_total > 0 and current.get("total_tokens", 0) < prev_total * 0.5:
+        return current, dict(current), True
+    return current, {key: current[key] - previous.get(key, 0) for key in _TOTAL_FIELDS}, False
 
 
 def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
@@ -233,6 +260,7 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
     # A full rebuild invalidates saved cursors and cumulative totals. Ignore
     # stale state when arbitrating duplicate rollout files in that run.
     seen_totals, seen_nodes = ({} if full else _saved_totals(conn, paths)), set()
+    last_totals = {} if full else _saved_last_totals(conn)
     for path in paths:
         cur = open_cursor(conn, path, SOURCE, PARSER_VERSION, full)
         if cur is None:
@@ -258,6 +286,13 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
                             state.update({"meta": meta, "thread_id": meta["id"], "cutoff": meta.get("subagent_history_start_ordinal"),
                                           "fallback_cutoff_ts": meta.get("timestamp"), "fallback_active": True, "started": meta.get("timestamp")})
                             first_meta_seen = True
+                            if _is_continuation(path, str(meta["id"])):
+                                # Seed the counter from the largest earlier file of this thread so this
+                                # file only stores its own increases (keeps per-day and per-model splits).
+                                earlier = [t for p_, t in last_totals.get(str(meta["id"]), []) if p_ < str(path)]
+                                if earlier:
+                                    state["last_total"] = max(earlier, key=lambda t: t.get("total_tokens", 0))
+                                state["continuation"] = True
                     continue
                 if not _eligible(obj, state) or not isinstance(payload, dict):
                     continue
@@ -323,25 +358,36 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
                         state["fallback_total"] += as_int(usage.get("total_tokens")) or as_int(usage.get("input_tokens")) + as_int(usage.get("output_tokens"))
             final_total = state.get("last_total", {}).get("total_tokens") if state.get("seen_token_count") else state.get("fallback_total")
             total_int = as_int(final_total) if final_total is not None else None
-            if _has_other_larger(seen_totals, str(thread_id), path, total_int):
+            # Two kinds of same-thread files: continuations (rollout-...-<id>_<suffix>.jsonl, the
+            # counter carries on, rows are increments) and copies (the same history saved twice,
+            # e.g. live + archived). Only copies are deduplicated, keeping the most complete one.
+            copies = [(o, v) for o, v in seen_totals.get(str(thread_id), [])
+                      if o != str(path) and not _is_continuation(Path(o), str(thread_id))]
+            continuation = bool(state.get("continuation"))
+            skip = not continuation and _has_other_larger({str(thread_id): copies}, str(thread_id), path, total_int)
+            if skip:
                 conn.execute("DELETE FROM usage WHERE source=? AND raw_file=?", (SOURCE, str(path)))
                 stats.notes.append(f"skipped duplicate usage for {thread_id} in {path.name}")
-            else:
-                reconcile = any(other != str(path) and value is not None and total_int is not None and value < total_int for other, value in seen_totals.get(str(thread_id), []))
-                if reconcile:
-                    stats.notes.append(f"reconciled duplicate usage for {thread_id} from {path.name}")
-                    for other, value in seen_totals.get(str(thread_id), []):
-                        if other != str(path) and value is not None and value < total_int:
-                            conn.execute("DELETE FROM usage WHERE source=? AND raw_file=?", (SOURCE, other))
-                    existing = conn.execute("SELECT 1 FROM usage WHERE source=? AND raw_file=? LIMIT 1", (SOURCE, str(path))).fetchone()
-                    if state.get("seen_token_count") and existing is None and total_int is not None:
-                        pending = [(f"cx:{thread_id}:{state.get('last_token_offset', 0)}", state.get("last_token_ts"), state.get("latest_model"), dict(state.get("last_total") or {}))]
+            elif not continuation:
+                replaced = False
+                for other, value in copies:
+                    if value is not None and total_int is not None and value < total_int:
+                        conn.execute("DELETE FROM usage WHERE source=? AND raw_file=?", (SOURCE, other))
+                        stats.notes.append(f"replaced duplicate usage for {thread_id} from {Path(other).name}")
+                        replaced = True
+                existing = conn.execute("SELECT 1 FROM usage WHERE source=? AND raw_file=? LIMIT 1", (SOURCE, str(path))).fetchone()
+                if replaced and existing is None and state.get("seen_token_count") and total_int is not None:
+                    # This copy's earlier rows were dropped while the other copy was ahead; restate its total.
+                    pending = [(f"cx:{thread_id}:{state.get('last_token_offset', 0)}", state.get("last_token_ts"),
+                                state.get("latest_model"), dict(state.get("last_total") or {}))]
+            if not skip:
                 for key, stamp, model, delta in pending:
-                    cached = max(0, as_int(delta.get("cached_input_tokens")))
+                    # Signed on purpose: see _merge_cumulative. OpenAI input includes cached input.
+                    cached = as_int(delta.get("cached_input_tokens"))
                     put_usage(conn, SOURCE, key, f"cx:{thread_id}", ts=stamp, model=model,
-                              input=max(0, as_int(delta.get("input_tokens")) - cached), cached_input=cached,
-                              cache_write=max(0, as_int(delta.get("cache_write_input_tokens"))), output=max(0, as_int(delta.get("output_tokens"))),
-                              reasoning=max(0, as_int(delta.get("reasoning_output_tokens"))), raw_file=str(path))
+                              input=as_int(delta.get("input_tokens")) - cached, cached_input=cached,
+                              cache_write=as_int(delta.get("cache_write_input_tokens")), output=as_int(delta.get("output_tokens")),
+                              reasoning=as_int(delta.get("reasoning_output_tokens")), raw_file=str(path))
                 if not state.get("seen_token_count"):
                     for response_id, record in (state.get("fallback_records") or {}).items():
                         usage = record.get("usage", record) if isinstance(record, dict) else {}
@@ -353,9 +399,15 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
                                   cache_write=max(0, as_int(usage.get("cache_write_input_tokens"))), output=max(0, as_int(usage.get("output_tokens"))),
                                   reasoning=max(0, as_int(usage.get("reasoning_output_tokens"))), raw_file=str(path))
             seen_totals.setdefault(str(thread_id), []).append((str(path), total_int))
+            if state.get("seen_token_count"):
+                last_totals.setdefault(str(thread_id), []).append((str(path), _totals(state.get("last_total"))))
             fields = _display(state, cfg, path)
             if fields:
-                _write_display(conn, fields, titles.get(str(thread_id)), path)
+                origin = path
+                if state.get("continuation"):
+                    row = conn.execute("SELECT raw_file FROM nodes WHERE id=?", (f"cx:{thread_id}",)).fetchone()
+                    origin = Path(row[0]) if row and row[0] else path  # node stays with the thread's first file
+                _write_display(conn, fields, titles.get(str(thread_id)), origin)
                 if str(thread_id) not in seen_nodes:
                     seen_nodes.add(str(thread_id))
                     stats.nodes += 1

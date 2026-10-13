@@ -44,7 +44,6 @@ class CodexParserTests(unittest.TestCase):
     def _all_text(self):
         values = []
         for table in ("nodes", "sessions", "usage", "projects", "files"):
-            columns = [row[1] for row in self.conn.execute(f"PRAGMA table_info({table})")]
             for row in self.conn.execute(f"SELECT * FROM {table}"):
                 values.extend(str(value) for value in row if isinstance(value, str))
         return values
@@ -167,3 +166,75 @@ class CodexParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CodexContinuationTests(unittest.TestCase):
+    """Long threads continue in rollout-...-<id>_<suffix>.jsonl with the counter carrying on."""
+
+    TID = "01a09262-0000-7000-8000-000000000001"
+
+    def setUp(self):
+        import tempfile
+        from agent_tree.config import Config
+        from agent_tree.db import connect
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.codex = root / "codex"
+        self.cfg = Config(root / "home", root / "claude", self.codex, root / "t3", [])
+        self.conn = connect(root / "index.sqlite")
+
+    def tearDown(self):
+        self.conn.close()
+        self.tmp.cleanup()
+
+    def _file(self, day, name, ordinal0, model, totals):
+        path = self.codex / "sessions" / "2026" / "09" / day / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lines = [
+            {"timestamp": f"2026-09-{day}T00:00:00Z", "ordinal": ordinal0, "type": "session_meta",
+             "payload": {"id": self.TID, "timestamp": "2026-09-11T00:00:00Z", "cwd": "/w"}},
+            {"timestamp": f"2026-09-{day}T00:00:01Z", "ordinal": ordinal0 + 1, "type": "turn_context",
+             "payload": {"model": model, "effort": "high"}},
+        ]
+        for i, (inp, cached, out) in enumerate(totals):
+            lines.append({"timestamp": f"2026-09-{day}T00:0{i + 2}:00Z", "ordinal": ordinal0 + 2 + i, "type": "event_msg",
+                          "payload": {"type": "token_count", "info": {"total_token_usage": {
+                              "input_tokens": inp, "cached_input_tokens": cached, "output_tokens": out,
+                              "reasoning_output_tokens": 0, "total_tokens": inp + out}}}})
+        with path.open("w", encoding="utf-8") as fh:
+            for line in lines:
+                fh.write(json.dumps(line) + "\n")
+        return path
+
+    def _rows(self):
+        return self.conn.execute(
+            "SELECT substr(ts,1,10) d, model, SUM(input+cached_input) i, SUM(cached_input) c, SUM(output) o "
+            "FROM usage WHERE node_id=? GROUP BY d, model ORDER BY d", (f"cx:{self.TID}",)).fetchall()
+
+    def test_increments_keep_their_day_and_model(self):
+        from agent_tree.sources.codex import scan
+        self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a", [(100, 50, 10), (300, 200, 30)])
+        cont = self._file("15", f"rollout-2026-09-15T00-00-00-{self.TID}_01a0a4e7-0000-7000-8000-000000000002.jsonl",
+                          500, "gpt-b", [(350, 220, 35), (900, 600, 90)])
+        scan(self.conn, self.cfg)
+        rows = [tuple(r) for r in self._rows()]
+        self.assertEqual(rows, [("2026-09-11", "gpt-a", 300, 200, 30), ("2026-09-15", "gpt-b", 600, 400, 60)])
+        node = self.conn.execute("SELECT started, raw_file FROM nodes WHERE id=?", (f"cx:{self.TID}",)).fetchone()
+        self.assertTrue(node["started"].startswith("2026-09-11"))
+        self.assertNotIn("_01a0a4e7", node["raw_file"])
+
+        # Appending to the continuation adds only the increase.
+        with cont.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"timestamp": "2026-09-16T00:00:00Z", "ordinal": 600, "type": "event_msg",
+                                 "payload": {"type": "token_count", "info": {"total_token_usage": {
+                                     "input_tokens": 1000, "cached_input_tokens": 650, "output_tokens": 95,
+                                     "reasoning_output_tokens": 0, "total_tokens": 1095}}}}) + "\n")
+        scan(self.conn, self.cfg)
+        total = self.conn.execute("SELECT SUM(input+cached_input), SUM(output) FROM usage WHERE node_id=?", (f"cx:{self.TID}",)).fetchone()
+        self.assertEqual(tuple(total), (1000, 95))
+
+        # A full rebuild gives the same split.
+        scan(self.conn, self.cfg, full=True)
+        total = self.conn.execute("SELECT SUM(input+cached_input), SUM(output) FROM usage WHERE node_id=?", (f"cx:{self.TID}",)).fetchone()
+        self.assertEqual(tuple(total), (1000, 95))
+        self.assertEqual(len(self._rows()), 3)
