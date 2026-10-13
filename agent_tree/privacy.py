@@ -21,8 +21,8 @@ _KEY_PATTERNS = [
     r"AKIA[0-9A-Z]{16}",                                 # AWS access key id
     r"AIza[0-9A-Za-z_\-]{30,}",                          # Google API key
     r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{5,}",  # JWT
-    r"(?i)bearer\s+[A-Za-z0-9._\-~+/]{16,}=*",
-    r"(?i)(?:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*\S{8,}",
+    r"(?i:bearer)\s+[A-Za-z0-9._\-~+/]{16,}=*",
+    r"(?i:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*\S{8,}",
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
 ]
 KEY_RE = re.compile("|".join(f"(?:{p})" for p in _KEY_PATTERNS))

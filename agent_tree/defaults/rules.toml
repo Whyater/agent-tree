@@ -38,11 +38,13 @@ severity = "warn"
 enabled = true
 severity = "warn"
 max_minutes = 30
+include_roots = false        # top-level sessions are often long by design
 
 [heavy_tokens]
 enabled = true
 severity = "warn"
-max_tokens = 2000000
+max_tokens = 2000000         # self tokens, including cache reads
+include_roots = false
 
 [expensive_model_trivial_task]
 enabled = true

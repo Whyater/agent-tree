@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     parser_version   TEXT,
     extra_json       TEXT,
     -- filled by the indexer
-    tree_id          TEXT,
+    tree_id          TEXT,                  -- root node id of the resolved tree; NULL = merged into another node
     depth            INTEGER,
     counts_usage     INTEGER NOT NULL DEFAULT 1
 );
@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS usage (
     output        INTEGER NOT NULL DEFAULT 0, -- includes reasoning for OpenAI
     reasoning     INTEGER NOT NULL DEFAULT 0, -- informational subset of output
     raw_file      TEXT,
+    cost          REAL,                     -- estimate, filled by the indexer (NULL = no price)
+    family        TEXT,                     -- model family, filled by the indexer
     PRIMARY KEY (source, key)
 );
 CREATE INDEX IF NOT EXISTS usage_node ON usage(node_id);
@@ -143,12 +145,14 @@ CREATE INDEX IF NOT EXISTS flags_tree ON flags(tree_id);
 
 -- Rollups written by the indexer after every scan.
 CREATE TABLE IF NOT EXISTS node_totals (
-    node_id        TEXT PRIMARY KEY,
-    self_input     INTEGER, self_cached INTEGER, self_cache_write INTEGER,
-    self_output    INTEGER, self_reasoning INTEGER, self_cost REAL, self_cost_known INTEGER,
-    sub_input      INTEGER, sub_cached INTEGER, sub_cache_write INTEGER,
-    sub_output     INTEGER, sub_reasoning INTEGER, sub_cost REAL, sub_cost_known INTEGER,
-    sub_nodes      INTEGER, sub_max_depth INTEGER
+    node_id          TEXT PRIMARY KEY,
+    self_input       INTEGER, self_cached INTEGER, self_cache_write INTEGER, self_output INTEGER, self_reasoning INTEGER,
+    self_cost        REAL,      -- estimate for usage not covered by a plan
+    self_covered     REAL,      -- estimate for plan-covered usage
+    self_unpriced    INTEGER,   -- usage rows with tokens but no price
+    sub_input        INTEGER, sub_cached INTEGER, sub_cache_write INTEGER, sub_output INTEGER, sub_reasoning INTEGER,
+    sub_cost         REAL, sub_covered REAL, sub_unpriced INTEGER,
+    sub_nodes        INTEGER, sub_max_depth INTEGER
 );
 """
 
@@ -310,7 +314,7 @@ def put_usage(
            ON CONFLICT(source, key) DO UPDATE SET
              node_id=excluded.node_id, ts=COALESCE(usage.ts, excluded.ts), model=COALESCE(excluded.model, usage.model),
              input=excluded.input, cached_input=excluded.cached_input, cache_write=excluded.cache_write,
-             output=excluded.output, reasoning=excluded.reasoning, raw_file=excluded.raw_file""",
+             output=excluded.output, reasoning=excluded.reasoning, raw_file=excluded.raw_file, cost=NULL""",
         (source, key, node_id, ts, model, int(input or 0), int(cached_input or 0), int(cache_write or 0),
          int(output or 0), int(reasoning or 0), raw_file),
     )
