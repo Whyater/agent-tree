@@ -1,0 +1,1 @@
+{"agentType": "general-purpose", "description": "background child description", "toolUseId": "toolu-async", "spawnDepth": 1, "requestShape": "background", "model": "sonnet"}
