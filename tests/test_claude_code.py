@@ -153,3 +153,73 @@ class ClaudeCodeParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClaudeCodeDriftTests(unittest.TestCase):
+    """Regressions from review: wrapper-call detection, drifted values, spawn rows."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.claude = root / "claude"
+        self.project = self.claude / "projects" / "-work-demo"
+        self.project.mkdir(parents=True)
+        self.cfg = Config(root / "home", self.claude, root / "codex", root / "t3", [])
+        self.conn = connect(root / "index.sqlite")
+
+    def tearDown(self):
+        self.conn.close()
+        self.tmp.cleanup()
+
+    def _session(self, name, records):
+        path = self.project / f"{name}.jsonl"
+        with path.open("w", encoding="utf-8") as fh:
+            for r in records:
+                fh.write(json.dumps(r) + "\n")
+        return path
+
+    @staticmethod
+    def _bash(i, command, cwd="/work/demo"):
+        return {"type": "assistant", "uuid": f"u{i}", "timestamp": f"2026-10-10T00:00:0{i}Z", "cwd": cwd,
+                "sessionId": "s1", "requestId": f"req{i}",
+                "message": {"id": f"m{i}", "model": "claude-haiku-5-5", "usage": {"input_tokens": 1, "output_tokens": 1},
+                            "content": [{"type": "tool_use", "id": f"toolu_{i}", "name": "Bash", "input": {"command": command}}]}}
+
+    def test_wrapper_calls_only_in_command_position(self):
+        cmds = [
+            '"/home/me/.claude/bin/codex-agent.sh" sol workspace-write /work/demo /tmp/codex-tasks/a.md high',
+            'mkdir -p /tmp/codex-tasks && codex-agent.sh luna read-only /work/demo tasks/b.md 2>/dev/null',
+            'FOO=1 bash ~/.claude/bin/codex-agent.sh sol read-only /work/demo /tmp/codex-tasks/c.md',
+            'cat ~/.claude/bin/codex-agent.sh | head -5',
+            'grep -n effort ~/.claude/bin/codex-agent.sh',
+            'codex-agent.sh sol workspace-write /work/demo $F',
+            'codex-agent.sh sol workspace-write /work/demo -v',
+        ]
+        self._session("s1", [self._bash(i, c) for i, c in enumerate(cmds)])
+        scan(self.conn, self.cfg)
+        got = sorted(r[0] for r in self.conn.execute("SELECT from_id FROM links WHERE kind='wrapper-caller'"))
+        self.assertEqual(got, ["/tmp/codex-tasks/a.md", "/tmp/codex-tasks/c.md", "/work/demo/tasks/b.md"])
+
+    def test_drifted_values_do_not_break_the_scan(self):
+        rec = self._bash(1, "ls")
+        rec["effort"] = "x" * 5000
+        rec["message"]["content"] = [{"type": "tool_use", "id": "toolu_x", "name": "Agent",
+                                      "input": {"description": "d", "model": {"weird": True}}}]
+        rec["message"]["model"] = {"not": "a string"}
+        self._session("s1", [rec, self._bash(2, "ls")])
+        (self.project / "s2.jsonl").write_text('{"type":"assistant","message":{"id":[1],"usage":"nope"}}\n')
+        stats = scan(self.conn, self.cfg)
+        self.assertEqual(stats.errors, [])
+        node = self.conn.execute("SELECT effort, model FROM nodes WHERE id='cc:s1'").fetchone()
+        self.assertLessEqual(len(node["effort"] or ""), 40)
+        self.assertEqual(node["model"], "claude-haiku-5-5")
+        spawn = self.conn.execute("SELECT requested_model FROM spawns WHERE key='toolu_x'").fetchone()
+        self.assertIsNone(spawn["requested_model"])
+
+    def test_only_agent_results_create_spawn_rows(self):
+        bash_result = {"type": "user", "uuid": "r1", "timestamp": "2026-10-10T00:00:05Z", "sessionId": "s1",
+                       "toolUseResult": {"stdout": "x", "exitCode": 0},
+                       "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_1"}]}}
+        self._session("s1", [self._bash(1, "ls"), bash_result])
+        scan(self.conn, self.cfg)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM spawns").fetchone()[0], 0)

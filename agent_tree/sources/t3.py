@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,7 @@ from .base import (
 )
 
 PARSER_VERSION = "t3-1"
+MIN_RESCAN_SECONDS = 180
 SOURCE = "t3"
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 
@@ -97,6 +100,11 @@ def _model_selection(value: Any) -> tuple[str | None, str | None, str | None]:
             str(effort) if effort is not None else None)
 
 
+def _ident(value: Any) -> str | None:
+    """Identifiers (model, effort, status) are kept in metadata-only mode but capped."""
+    return str(value)[:80] if isinstance(value, (str, int, float)) and str(value) else None
+
+
 def _provider_prefix(provider: Any) -> str:
     return "cc" if str(provider or "").lower() in {"claudeagent", "claude", "anthropic"} else "cx"
 
@@ -116,20 +124,14 @@ def _deleted(value: Any) -> bool:
 
 
 def _thread_status(thread: sqlite3.Row, turns: list[sqlite3.Row]) -> str:
+    """active = a turn is running right now; otherwise archived or settled."""
+    if turns:
+        latest = max(turns, key=lambda t: (_ts(_row_value(t, "requested_at")) or _ts(_row_value(t, "started_at")) or ""))
+        if str(_row_value(latest, "state") or "").lower() == "running" and not _row_value(latest, "completed_at"):
+            return "active"
     if _deleted(_row_value(thread, "archived_at")):
         return "archived"
-    raw = str(_row_value(thread, "status") or "").lower()
-    if raw in {"archived", "settled", "active"}:
-        return raw
-    latest_id = _row_value(thread, "latest_turn_id")
-    candidates = [t for t in turns if latest_id is None or str(_row_value(t, "turn_id")) == str(latest_id)]
-    if not candidates:
-        candidates = turns
-    latest = max(candidates, key=lambda t: (_ts(_row_value(t, "completed_at")) or _ts(_row_value(t, "started_at")) or _ts(_row_value(t, "requested_at")) or ""), default=None)
-    state = str(_row_value(latest, "state") or "").lower() if latest is not None else ""
-    if state in {"settled", "completed", "complete", "done", "succeeded", "success", "finished", "failed", "error", "aborted", "cancelled", "canceled"}:
-        return "settled"
-    return "active"
+    return "settled"
 
 
 def _turn_times(thread_id: str, turns: list[sqlite3.Row]) -> tuple[str | None, str | None]:
@@ -190,7 +192,7 @@ def _infer_claude(conn: sqlite3.Connection, project_path: str | None, started: s
     if not project_path:
         return []
     candidates: list[str] = []
-    for row in conn.execute("SELECT id, started, ended, project_path FROM nodes WHERE source='claude-code' AND kind IN ('root','subagent')"):
+    for row in conn.execute("SELECT id, started, ended, project_path FROM nodes WHERE source='claude-code' AND kind='root'"):
         if row["project_path"] != project_path:
             continue
         cstart, cend = row["started"], row["ended"]
@@ -247,7 +249,16 @@ def _unchanged(conn: sqlite3.Connection, path: Path, full: bool) -> bool:
     if not row or row["parser_version"] != PARSER_VERSION:
         return False
     state = _json(row["state_json"]) or {}
-    return (row["size"], row["mtime_ns"], as_int(state.get("wal_size")), as_int(state.get("wal_mtime_ns"))) == sig
+    if (row["size"], row["mtime_ns"], as_int(state.get("wal_size")), as_int(state.get("wal_mtime_ns"))) == sig:
+        return True
+    # T3 writes its WAL constantly while open, and reading it means snapshotting
+    # the database. Thread metadata changes slowly, so re-read at most every few minutes.
+    last = conn.execute("SELECT last_scan FROM files WHERE path=?", (str(path),)).fetchone()
+    try:
+        age = time.time() - datetime.fromisoformat(str(last[0]).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return False
+    return age < MIN_RESCAN_SECONDS
 
 
 def _clear_previous(conn: sqlite3.Connection) -> None:
@@ -279,7 +290,11 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
             turns = _table(t3, "projection_turns")
             sessions = _table(t3, "projection_thread_sessions")
             runtimes = _table(t3, "provider_session_runtime")
-            activities = _table(t3, "projection_thread_activities")
+            # Only the kinds we use; the full table carries large payloads.
+            activities = t3.execute(
+                "SELECT thread_id, kind, sequence, created_at, payload_json FROM projection_thread_activities "
+                "WHERE kind = 'context-window.updated' OR kind LIKE 'task.%'"
+            ).fetchall()
     except Exception as exc:
         stats.errors.append(f"state.sqlite: {type(exc).__name__}: {exc}")
         return stats
@@ -339,8 +354,8 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
         upsert_node(
             conn, node_id, session_id=node_id, source=SOURCE, kind="t3-thread",
             agent_type=provider or "t3", description=title,
-            model=clean_text(model, cfg.metadata_only, cfg.text_limit), family=model_family(model),
-            effort=clean_text(effort, cfg.metadata_only, cfg.text_limit), status=status,
+            model=_ident(model), family=model_family(model),
+            effort=_ident(effort), status=status,
             started=started, ended=ended, project_path=str(project_path) if project_path else None,
             raw_file=str(path), raw_offset=0, parser_version=PARSER_VERSION, extra_json=extra,
         )
@@ -417,8 +432,8 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
         upsert_node(
             conn, node_id, session_id=thread["node_id"], parent_hint=thread["node_id"], source=SOURCE,
             kind="t3-task", agent_type="t3-task", role=clean_text(role, cfg.metadata_only, cfg.text_limit),
-            description=clean_text(title, cfg.metadata_only, cfg.text_limit), model=clean_text(model, cfg.metadata_only, cfg.text_limit),
-            family=model_family(model), effort=clean_text(effort, cfg.metadata_only, cfg.text_limit), status=item["status"],
+            description=clean_text(title, cfg.metadata_only, cfg.text_limit), model=_ident(model),
+            family=model_family(model), effort=_ident(effort), status=_ident(item["status"]),
             started=item["started"], ended=item["ended"], project_path=thread["project_path"], raw_file=str(path), raw_offset=0,
             parser_version=PARSER_VERSION, extra_json=extra,
         )

@@ -67,43 +67,82 @@ def _blocks(message: Any) -> list[dict[str, Any]]:
     return [block for block in content if isinstance(block, dict)]
 
 
-def _abs_prompt_path(value: Any) -> str | None:
-    if value is None:
+def _abs_prompt_path(value: Any, cwd: str | None) -> str | None:
+    if not isinstance(value, str) or not value or "$" in value or value.startswith("-"):
         return None
     try:
-        path = Path(str(value)).expanduser()
+        path = Path(value).expanduser()
         if not path.is_absolute():
-            path = Path.cwd() / path
+            if not cwd:
+                return None
+            path = Path(cwd) / path
         return str(path.absolute())
     except (TypeError, ValueError, OSError):
         return None
 
 
-def _wrapper_link(conn: sqlite3.Connection, command: Any, node_id: str, ts: str | None) -> None:
-    """Record a caller link for a ``codex-agent.sh`` invocation."""
+_SEPARATORS = {"&&", "||", ";", "|", "&"}
+_SHELLS = {"sh", "bash", "zsh", "exec", "env", "nohup", "time"}
+
+
+def _wrapper_link(conn: sqlite3.Connection, command: Any, node_id: str, ts: str | None, cwd: str | None) -> None:
+    """Record a caller link when a Bash command *runs* ``codex-agent.sh``.
+
+    The script must be in command position (start of a command, after a
+    separator, env assignments or a shell/exec prefix); commands that merely
+    mention it (cat, grep, sed ...) are ignored.
+    """
     if not isinstance(command, str) or "codex-agent.sh" not in command:
         return
     try:
-        parts = shlex.split(command)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        parts = list(lexer)
     except ValueError:
         return
     script_index = None
+    at_start = True
     for index, token in enumerate(parts):
-        try:
-            if Path(token).name == "codex-agent.sh":
-                script_index = index
-                break
-        except (TypeError, ValueError):
+        if token in _SEPARATORS:
+            at_start = True
             continue
-    if script_index is None or len(parts) <= script_index + 4:
+        if at_start and ("=" in token and not token.startswith("=") and "/" not in token.split("=", 1)[0]):
+            continue  # VAR=value prefix
+        if at_start and token in _SHELLS:
+            continue
+        if at_start and Path(token).name == "codex-agent.sh":
+            script_index = index
+            break
+        at_start = False
+    if script_index is None:
         return
-    tier = parts[script_index + 1]
-    prompt_file = _abs_prompt_path(parts[script_index + 4])
+    args = []
+    for token in parts[script_index + 1:]:
+        if token in _SEPARATORS or token.startswith((">", "<", "2>")):
+            break
+        args.append(token)
+    if len(args) < 4:
+        return
+    prompt_file = _abs_prompt_path(args[3], cwd)
     if prompt_file is None:
         return
-    effort = parts[script_index + 5] if len(parts) > script_index + 5 else None
-    detail = json.dumps({"tier": tier, "effort": effort, "ts": ts}, sort_keys=True)
+    effort = args[4] if len(args) > 4 else None
+    detail = json.dumps({"tier": args[0], "effort": effort, "ts": ts}, sort_keys=True)
     db.put_link(conn, "wrapper-caller", prompt_file, node_id, "exact", detail)
+
+
+def _scalar(value: Any, limit: int = 160) -> str | None:
+    """Identifiers from transcripts (ids, types, statuses, model names).
+
+    Formats drift: a field that used to be a string may become a dict. Bind
+    only plain scalars, capped, so one odd record can never break a scan.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (str, int, float)):
+        text = str(value)
+        return text[:limit] if text else None
+    return None
 
 
 def _old_nodes(conn: sqlite3.Connection, path: Path) -> list[tuple[str, str | None, str | None]]:
@@ -180,20 +219,20 @@ def _upsert_meta_node(
     node_id = f"cc-agent:{agent_id}"
     extra = {
         "spawn_depth": meta.get("spawnDepth"),
-        "request_shape": meta.get("requestShape"),
-        "requested_model": meta.get("model"),
+        "request_shape": _scalar(meta.get("requestShape"), 40),
+        "requested_model": _scalar(meta.get("model"), 80),
     }
     db.upsert_node(
         conn,
         node_id,
         session_id=f"cc:{session_id}",
-        parent_hint=meta.get("toolUseId"),
+        parent_hint=_scalar(meta.get("toolUseId")),
         source=SOURCE,
         kind="subagent",
-        agent_type=meta.get("agentType"),
+        agent_type=_scalar(meta.get("agentType"), 80),
         description=clean_text(meta.get("description"), cfg.metadata_only, cfg.text_limit),
-        model=_non_synthetic_model(meta.get("model")),
-        family=model_family(_non_synthetic_model(meta.get("model"))),
+        model=_non_synthetic_model(_scalar(meta.get("model"), 80)),
+        family=model_family(_non_synthetic_model(_scalar(meta.get("model"), 80))),
         extra_json=extra,
         raw_file=str(path),
         raw_offset=0,
@@ -235,18 +274,18 @@ def _record_state(state: dict[str, Any], record: dict[str, Any], ts: str | None,
     if typ == "cost-state" and "totalCostUSD" in record:
         state["reported_cost_usd"] = record.get("totalCostUSD")
 
-    effort = record.get("effort")
+    effort = _scalar(record.get("effort"), 40)
     if effort:
         previous_ts = state.get("effort_ts")
         if not previous_ts or not ts or ts >= previous_ts:
-            state["effort"] = str(effort)
+            state["effort"] = _scalar(effort, 40)
             if ts:
                 state["effort_ts"] = ts
 
     message = record.get("message")
     if not isinstance(message, dict):
         return
-    model = _non_synthetic_model(message.get("model"))
+    model = _non_synthetic_model(_scalar(message.get("model"), 80))
     if model:
         previous_ts = state.get("model_ts")
         if not previous_ts or not ts or ts >= previous_ts:
@@ -303,20 +342,20 @@ def _write_node(
         )
     else:
         meta = meta or {}
-        meta_model = _non_synthetic_model(meta.get("model"))
+        meta_model = _non_synthetic_model(_scalar(meta.get("model"), 80))
         extra = {
             "spawn_depth": meta.get("spawnDepth"),
-            "request_shape": meta.get("requestShape"),
-            "requested_model": meta.get("model"),
+            "request_shape": _scalar(meta.get("requestShape"), 40),
+            "requested_model": _scalar(meta.get("model"), 80),
         }
         db.upsert_node(
             conn,
             node_id,
             session_id=f"cc:{session_id}",
-            parent_hint=meta.get("toolUseId"),
+            parent_hint=_scalar(meta.get("toolUseId")),
             source=SOURCE,
             kind="subagent",
-            agent_type=meta.get("agentType"),
+            agent_type=_scalar(meta.get("agentType"), 80),
             description=clean_text(meta.get("description"), cfg.metadata_only, cfg.text_limit),
             model=model or meta_model,
             family=model_family(model or meta_model),
@@ -339,16 +378,17 @@ def _process_record(
     ts: str | None,
     node_id: str,
     path: Path,
+    cwd: str | None = None,
 ) -> None:
     typ = record.get("type")
     message = record.get("message")
     if typ == "assistant" and isinstance(message, dict):
-        model = _non_synthetic_model(message.get("model"))
+        model = _non_synthetic_model(_scalar(message.get("model"), 80))
         usage = message.get("usage")
         if model and isinstance(usage, dict):
-            request_id = record.get("requestId")
-            message_id = message.get("id")
-            uuid = record.get("uuid")
+            request_id = _scalar(record.get("requestId"))
+            message_id = _scalar(message.get("id"))
+            uuid = _scalar(record.get("uuid"))
             key = (
                 f"cc:{request_id}" if request_id else
                 f"cc:msg:{message_id}" if message_id else
@@ -375,7 +415,7 @@ def _process_record(
             if block.get("type") != "tool_use":
                 continue
             name = block.get("name")
-            tool_id = block.get("id")
+            tool_id = _scalar(block.get("id"))
             if not tool_id:
                 continue
             tool_input = block.get("input")
@@ -387,15 +427,18 @@ def _process_record(
                     str(tool_id),
                     node_id,
                     description=clean_text(tool_input.get("description"), cfg.metadata_only, cfg.text_limit),
-                    requested_model=tool_input.get("model"),
+                    requested_model=_scalar(tool_input.get("model"), 80),
                     ts=ts,
                 )
             elif name == "Bash":
-                _wrapper_link(conn, tool_input.get("command"), node_id, ts)
+                _wrapper_link(conn, tool_input.get("command"), node_id, ts, cwd)
 
     if typ != "user" or not isinstance(record.get("toolUseResult"), dict):
         return
     result = record["toolUseResult"]
+    agent_id = _scalar(result.get("agentId"))
+    if not agent_id:
+        return  # results of Bash, Read, etc. are not agent spawns
     result_blocks = [block for block in _blocks(message) if block.get("type") == "tool_result"]
     for block in result_blocks:
         tool_id = block.get("tool_use_id")
@@ -405,9 +448,9 @@ def _process_record(
             conn,
             str(tool_id),
             node_id,
-            child_hint=result.get("agentId"),
-            resolved_model=result.get("resolvedModel"),
-            status=result.get("status"),
+            child_hint=agent_id,
+            resolved_model=_scalar(result.get("resolvedModel"), 80),
+            status=_scalar(result.get("status"), 40),
         )
 
 
@@ -447,7 +490,7 @@ def _process_transcript(
         ts = norm_ts(record.get("timestamp"))
         _record_state(state, record, ts, cfg)
         _session_id, record_node_id = _node_state(state, fallback_session, agent_id)
-        _process_record(conn, cfg, record, ts, record_node_id, path)
+        _process_record(conn, cfg, record, ts, record_node_id, path, state.get("cwd"))
     state["session_id"] = str(state.get("session_id") or fallback_session)
     session_id, node_id = _write_node(conn, cfg, path, fallback_session, agent_id, state, meta)
     touched.add(node_id)
@@ -459,7 +502,6 @@ def _process_transcript(
     stats.lines_parsed += cur.parsed_lines - parsed_before
     stats.lines_skipped += cur.skipped_lines - skipped_before
     save_cursor(conn, cur, SOURCE, PARSER_VERSION)
-    conn.commit()
 
 
 def scan(conn: sqlite3.Connection, cfg: Config, full: bool = False) -> SourceStats:
@@ -496,6 +538,14 @@ def scan(conn: sqlite3.Connection, cfg: Config, full: bool = False) -> SourceSta
     conn.commit()
 
     for path in transcript_paths:
-        _process_transcript(conn, cfg, path, projects_root, full, stats, touched, metas)
+        conn.execute("SAVEPOINT cc_file")
+        try:
+            _process_transcript(conn, cfg, path, projects_root, full, stats, touched, metas)
+            conn.execute("RELEASE SAVEPOINT cc_file")
+        except Exception as exc:  # one odd file must not stop the scan
+            conn.execute("ROLLBACK TO SAVEPOINT cc_file")
+            conn.execute("RELEASE SAVEPOINT cc_file")
+            stats.errors.append(f"{path.name}: {type(exc).__name__}: {exc}")
+    conn.commit()
     stats.nodes = len(touched)
     return stats

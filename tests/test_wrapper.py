@@ -1,3 +1,5 @@
+import os
+import time
 import json
 import tempfile
 import unittest
@@ -34,7 +36,10 @@ class WrapperParserTests(unittest.TestCase):
 
         failed = self.run_dir / "failed.md"
         failed.write_text("prompt", encoding="utf-8")
-        (self.run_dir / "failed.md.log").write_text("failed: exit 1\n", encoding="utf-8")
+        failed_log = self.run_dir / "failed.md.log"
+        failed_log.write_text("some tool output failed: retrying\n", encoding="utf-8")
+        old = time.time() - 3600  # an hour-old log with no .out means the run died
+        os.utime(failed_log, (old, old))
         ignored = self.run_dir / "ignored.md"
         ignored.write_text("no sidecar", encoding="utf-8")
 

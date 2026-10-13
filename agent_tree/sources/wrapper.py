@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -65,12 +66,11 @@ def _log_fields(path: Path) -> tuple[dict[str, str], bool]:
         return fields, failed
     try:
         with path.open("r", encoding="utf-8", errors="replace") as fh:
-            for number, line in enumerate(fh):
-                if number >= 200:
+            for number in range(200):
+                line = fh.readline(65536)  # bounded: one huge line can't load a whole file
+                if not line:
                     break
                 text = line.rstrip("\r\n")
-                if "failed:" in text.lower():
-                    failed = True
                 match = _SESSION_RE.search(text)
                 if match and "session_id" not in fields:
                     fields["session_id"] = match.group(1)
@@ -116,7 +116,14 @@ def _status(meta: dict[str, Any], out: Path, log: Path, failed_in_log: bool) -> 
             return "completed"
     except OSError:
         pass
-    return "failed" if failed_in_log else "unknown"
+    # No final message yet: still going if the log moved recently, else it died.
+    try:
+        st = log.stat()
+    except OSError:
+        return "unknown"
+    if time.time() - st.st_mtime < 600:
+        return "running"
+    return "failed" if st.st_size > 0 else "unknown"
 
 
 def _as_clean(value: Any, cfg: Any) -> str | None:

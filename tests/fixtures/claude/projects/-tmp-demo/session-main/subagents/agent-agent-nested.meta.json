@@ -1,1 +1,0 @@
-{"agentType": "general-purpose", "description": "nested child", "toolUseId": "toolu-nested", "spawnDepth": 2, "requestShape": "sync", "model": "haiku"}

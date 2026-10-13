@@ -1,1 +1,0 @@
-{"agentType": "general-purpose", "description": "sync child description", "toolUseId": "toolu-sync", "spawnDepth": 1, "requestShape": "sync", "model": "opus"}
