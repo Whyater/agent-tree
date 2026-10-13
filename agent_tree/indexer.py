@@ -86,6 +86,8 @@ def _scan(conn: sqlite3.Connection, cfg: Config, full: bool, only: list[str] | N
     db.set_meta(conn, "last_scan", now_iso())
     db.set_meta(conn, "last_scan_stats", json.dumps([s.as_dict() for s in results]))
     conn.commit()
+    from .live import write as write_live  # snapshot for apps that show Agent Tree (see live.py)
+    write_live(conn, cfg)
     return results
 
 

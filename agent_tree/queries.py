@@ -576,7 +576,24 @@ def now(conn, cfg, window_minutes: int = 10) -> dict:
         lead = conn.execute(
             "SELECT model, family FROM nodes WHERE tree_id = ? AND model IS NOT NULL ORDER BY COALESCE(ended, started) DESC LIMIT 1",
             (tree_id,)).fetchone()
+        # When the current burst of work began: the earliest start among nodes still active
+        # (the root counts only when it is the only thing running). Drives the elapsed timer.
+        since = conn.execute(
+            """SELECT MIN(started) FROM nodes WHERE tree_id = ? AND COALESCE(ended, started) >= ?
+               AND kind NOT IN ('root', 't3-thread')""", (tree_id, cutoff)).fetchone()[0]
+        if not since:
+            # Only the main session is busy: walk its activity back to the last 10-minute gap.
+            stamps = [r[0] for r in conn.execute(
+                "SELECT u.ts FROM usage u JOIN nodes n ON n.id = u.node_id WHERE n.tree_id = ? AND u.ts IS NOT NULL "
+                "ORDER BY u.ts DESC LIMIT 5000", (tree_id,))]
+            since = stamps[0] if stamps else summ["started"]
+            for newer, older in zip(stamps, stamps[1:]):
+                if (datetime.fromisoformat(newer.replace("Z", "+00:00"))
+                        - datetime.fromisoformat(older.replace("Z", "+00:00"))) > timedelta(minutes=window_minutes):
+                    break
+                since = older
         out.append({
+            "active_since": since,
             "thread_id": tree_id, "title": summ["title"], "project_name": summ["project_name"],
             "model": lead["model"] if lead else None, "family": lead["family"] if lead else None,
             "started": summ["started"], "last_activity": row["last"], "agents_running": row["busy"] or 0,

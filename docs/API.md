@@ -163,6 +163,7 @@ Trees with activity in the last 10 minutes.
 { "running": [ { "thread_id": "t3:…", "title": "…", "project_name": "agent-tree",
                  "model": "claude-opus-5-5", "family": "anthropic",
                  "started": "…", "last_activity": "…", "agents_running": 3,
+                 "active_since": "…",   // start of the current burst of work (use for the elapsed timer)
                  "tokens": Tokens, "money": Money } ] }
 ```
 
