@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 CREATE INDEX IF NOT EXISTS usage_node ON usage(node_id);
 CREATE INDEX IF NOT EXISTS usage_ts ON usage(ts);
+CREATE INDEX IF NOT EXISTS usage_file ON usage(raw_file);
 
 CREATE TABLE IF NOT EXISTS spawns (
     key             TEXT PRIMARY KEY,       -- e.g. tool_use id "toolu_..."
