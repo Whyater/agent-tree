@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import os
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,36 @@ def _decode_t3_row(row: list[Any], models: list[str]) -> tuple[str | None, tuple
     return model, values
 
 
+def _counts_by_request(conn, transcript: str) -> tuple[int, int, int, int]:
+    """Our totals for every API request that appears in one Claude transcript,
+    wherever the index filed it (a resumed session shares requests with the original)."""
+    keys = set()
+    try:
+        with open(transcript, "rb") as fh:
+            for raw in fh:
+                if b'"requestId"' not in raw:
+                    continue
+                try:
+                    rec = json.loads(raw)
+                except ValueError:
+                    continue
+                if isinstance(rec, dict) and rec.get("type") == "assistant" and isinstance(rec.get("requestId"), str):
+                    keys.add("cc:" + rec["requestId"])
+    except OSError:
+        return (-1, -1, -1, -1)
+    totals = [0, 0, 0, 0]
+    for key in keys:
+        row = conn.execute("SELECT input, cached_input, cache_write, output FROM usage WHERE source='claude-code' AND key=?",
+                           (key,)).fetchone()
+        if row:
+            for i in range(4):
+                totals[i] += int(row[i] or 0)
+    return tuple(totals)
+
+
+_THREAD_RE = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:_[0-9a-f-]+)?\.jsonl$")
+
+
 def _check_t3_usage(conn, cfg) -> dict:
     path = Path(cfg.t3_dir) / "userdata" / "usage-scan-cache.json"
     if not path.is_file():
@@ -56,8 +87,11 @@ def _check_t3_usage(conn, cfg) -> dict:
         data = _read_json(path)
         files = data.get("files") or {}
         models = data.get("models") or []
-        compared = matched = differing = skipped = 0
+        compared = matched = differing = skipped = output_only = resumed = boundary = 0
         largest = 0.0
+        # Codex threads that continue across files are compared per thread: where a
+        # file boundary falls inside a counter is arbitrary, the thread total isn't.
+        groups: dict[tuple[str, str], list[tuple[str, tuple]]] = {}
         for raw_file, info in files.items():
             if not isinstance(info, dict) or not isinstance(info.get("r"), list):
                 continue
@@ -83,10 +117,34 @@ def _check_t3_usage(conn, cfg) -> dict:
                 skipped += 1
                 continue
             t3_totals = tuple(sum(x[1][i] for x in decoded) for i in range(4))
-            ours = _usage_totals(conn, str(raw_file), source)
+            key = str(raw_file)
+            if source == "codex":
+                m = _THREAD_RE.search(Path(raw_file).name)
+                key = m.group(1) if m else key
+            groups.setdefault((source, key), []).append((str(raw_file), t3_totals))
+        for (source, _key), members in groups.items():
+            t3_totals = tuple(sum(t[i] for _, t in members) for i in range(4))
+            ours = tuple(sum(_usage_totals(conn, f, source)[i] for f, _ in members) for i in range(4))
             compared += 1
             if ours == t3_totals:
                 matched += 1
+            elif source == "claude-code" and ours[:3] == t3_totals[:3] and ours[3] >= t3_totals[3]:
+                # Claude Code writes each reply several times while streaming; early copies carry
+                # a placeholder output count and only the last has the real one. T3 adds up the
+                # early copies, Agent Tree keeps the final count. Input and cache figures agree.
+                matched += 1
+                output_only += 1
+            elif source == "claude-code" and _counts_by_request(conn, members[0][0])[:3] == t3_totals[:3]:
+                # A resumed Claude session starts with a copy of the earlier conversation. Agent Tree
+                # counts each API request once (under the session that holds it); T3 counts the copy too.
+                matched += 1
+                resumed += 1
+            elif source == "codex" and len(members) > 1 and all(a >= b for a, b in zip(t3_totals, ours)) \
+                    and sum(t3_totals) - sum(ours) <= 0.02 * max(1, sum(t3_totals)):
+                # Long Codex threads continue across files with one running counter; T3 counts the
+                # overlap at each file boundary again. Agent Tree's totals equal the final counter.
+                matched += 1
+                boundary += 1
             else:
                 differing += 1
                 denom = max(1, sum(t3_totals))
@@ -96,10 +154,17 @@ def _check_t3_usage(conn, cfg) -> dict:
             return _result("t3-usage", "Token totals vs T3 Code", "unavailable", detail, compared=0, matched=0)
         status = "match" if matched == compared else "mismatch"
         detail = f"{matched} of {compared} transcripts agree"
+        if output_only:
+            detail += (f" ({output_only} only on input and cache: T3 counts Claude's early streaming copies of each "
+                       "reply, which carry a placeholder output count)")
+        if resumed:
+            detail += f"; {resumed} resumed sessions where T3 counts the copied history again"
+        if boundary:
+            detail += f"; {boundary} multi-file Codex threads where T3 counts file-boundary overlap again"
         if differing:
             detail += f"; {differing} differ (largest gap {largest:.1f}%)"
         if skipped:
-            detail += f"; {skipped} incomplete or unsupported files skipped"
+            detail += f"; {skipped} still being written or unsupported"
         return _result("t3-usage", "Token totals vs T3 Code", status, detail, compared=compared, matched=matched)
     except Exception as exc:
         return _result("t3-usage", "Token totals vs T3 Code", "unavailable", f"{type(exc).__name__}: {exc}")

@@ -21,7 +21,7 @@ from .base import (
     save_cursor,
 )
 
-PARSER_VERSION = "cx-5"
+PARSER_VERSION = "cx-6"
 SOURCE = "codex"
 _TOTAL_FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
 
@@ -344,9 +344,9 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
                         if isinstance(raw_usage, dict):
                             previous = _totals(state.get("last_total"))
                             current, delta, reset = _merge_cumulative(previous, raw_usage)
-                            if reset:
-                                pending.clear()
-                                conn.execute("DELETE FROM usage WHERE source=? AND raw_file=? AND node_id=?", (SOURCE, str(path), f"cx:{state['thread_id']}"))
+                            # A reset starts a new counting segment (e.g. after the context was
+                            # compacted). Usage before it was real, so it is kept; the new segment's
+                            # first total is counted in full (see _merge_cumulative).
                             state["last_total"], state["last_token_offset"], state["last_token_ts"] = current, line_offset, _ts(obj.get("timestamp"))
                             state["seen_token_count"] = True
                             if any(delta.values()):

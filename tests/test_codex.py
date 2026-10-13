@@ -92,8 +92,9 @@ class CodexParserTests(unittest.TestCase):
         self.assertEqual(self._usage("cx:grandchild")[:5], (5, 1, 0, 3, 1))
         # The ordinal-free prehistory is ignored until its first current task_started.
         self.assertEqual(self._usage("cx:old")[:5], (8, 1, 0, 4, 1))
-        # A counter decrease starts a new baseline, so earlier totals are removed.
-        self.assertEqual(self._usage("cx:reset")[:5], (22, 3, 2, 6, 1))
+        # A large counter drop starts a new segment; the usage before it is kept:
+        # uncached (20-2)+(25-3)=40, cached 2+3, cache write 1+2, output 5+6, reasoning 1+1.
+        self.assertEqual(self._usage("cx:reset")[:5], (40, 5, 3, 11, 2))
         self.assertEqual(self._usage("cx:record")[:5], (12, 3, 1, 7, 1))
 
         # The copied parent token_count in the child file is before the cutoff.
@@ -279,6 +280,12 @@ class CodexContinuationTests(unittest.TestCase):
         self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a", [(1000, 500, 100)])
         self._file("12", f"rollout-2026-09-12T00-00-00-{self.TID}_s1.jsonl", 500, "gpt-a", [(30, 10, 3), (60, 20, 6)])
         self.assertEqual(self._scan_total()[:2], (1060, 106))
+
+    def test_reset_inside_one_file_keeps_the_earlier_segment(self):
+        # Seen on real data: the counter restarts mid-file (2,083,896 -> 108,921). Both segments are real usage.
+        self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a",
+                   [(1000, 400, 100), (2000, 800, 200), (100, 40, 10), (300, 120, 30)])
+        self.assertEqual(self._scan_total()[:2], (2000 + 300, 200 + 30))
 
 
 if __name__ == "__main__":
