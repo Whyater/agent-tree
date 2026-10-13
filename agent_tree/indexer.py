@@ -148,6 +148,25 @@ def resolve(conn: sqlite3.Connection, cfg: Config, prices: PriceBook | None = No
         link = callers.get(task_path)
         if link and link["to_id"] in nodes:
             set_parent(nid, link["to_id"], link["confidence"])
+    # Calls whose task path was a shell variable: attach still-orphaned runs to the
+    # nearest such call made within 10 minutes after the task file was written.
+    unresolved = []
+    for l in links["wrapper-call-unresolved"]:
+        ts = _epoch(json.loads(l["detail"] or "{}").get("ts"))
+        if ts is not None and l["to_id"] in nodes:
+            unresolved.append((ts, l["to_id"]))
+    claimed = set()
+    for nid, n in sorted(nodes.items(), key=lambda kv: kv[1].get("started") or ""):
+        if n["kind"] != "wrapper" or parent.get(nid) is not None:
+            continue
+        start = _epoch(n.get("started"))
+        if start is None:
+            continue
+        best = min(((ts - start, ts, caller) for ts, caller in unresolved
+                    if 0 <= ts - start <= 600 and (ts, caller) not in claimed), default=None)
+        if best:
+            claimed.add((best[1], best[2]))
+            set_parent(nid, best[2], "inferred")
     for l in links["wrapper-codex"]:
         child, wrapper = l["to_id"], l["from_id"]
         if child in nodes and wrapper in nodes and parent.get(child) is None:
@@ -251,6 +270,15 @@ def _hook_states(conn) -> dict:
     if not row or not row[0]:
         return {}
     return json.loads(row[0]).get("agents", {})
+
+
+def _epoch(ts: str | None) -> float | None:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
 
 
 def _recent(ts: str | None, now: datetime) -> bool:

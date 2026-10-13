@@ -378,5 +378,24 @@ class ReReviewRegressionTests(unittest.TestCase):
                 httpd.server_close()
 
 
+class UnresolvedWrapperCallTests(unittest.TestCase):
+    def test_variable_task_path_is_matched_by_time(self):
+        with TempIndex() as t:
+            db.upsert_node(t.conn, "cc:S", session_id="cc:S", source="claude-code", kind="root")
+            db.upsert_node(t.conn, "cc-agent:R", session_id="cc:S", source="claude-code", kind="subagent", parent_hint="toolu_R")
+            db.put_spawn(t.conn, "toolu_R", "cc:S")
+            db.upsert_node(t.conn, "wr:/tmp/codex-tasks/a.md", source="wrapper", kind="wrapper",
+                           parent_hint="wrapper-caller:/tmp/codex-tasks/a.md", started="2026-10-10T00:00:00.000Z")
+            db.upsert_node(t.conn, "wr:/tmp/codex-tasks/late.md", source="wrapper", kind="wrapper",
+                           parent_hint="wrapper-caller:/tmp/codex-tasks/late.md", started="2026-10-10T02:00:00.000Z")
+            db.put_link(t.conn, "wrapper-call-unresolved", "cc-agent:R@2026-10-10T00:00:30.000Z", "cc-agent:R", "inferred",
+                        json.dumps({"ts": "2026-10-10T00:00:30.000Z"}))
+            indexer.resolve(t.conn, t.cfg)
+            n = {r["id"]: dict(r) for r in t.conn.execute("SELECT id, parent_id, link_confidence FROM nodes")}
+            self.assertEqual((n["wr:/tmp/codex-tasks/a.md"]["parent_id"], n["wr:/tmp/codex-tasks/a.md"]["link_confidence"]),
+                             ("cc-agent:R", "inferred"))
+            self.assertIsNone(n["wr:/tmp/codex-tasks/late.md"]["parent_id"])  # no call within 10 minutes
+
+
 if __name__ == "__main__":
     unittest.main()

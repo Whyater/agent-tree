@@ -125,6 +125,11 @@ def _wrapper_link(conn: sqlite3.Connection, command: Any, node_id: str, ts: str 
         return
     prompt_file = _abs_prompt_path(args[3], cwd)
     if prompt_file is None:
+        # e.g. "$F": the path is only known at run time. Record when the call happened so
+        # the indexer can match it to a wrapper run by time (labelled inferred).
+        if ts and isinstance(args[3], str) and "$" in args[3]:
+            db.put_link(conn, "wrapper-call-unresolved", f"{node_id}@{ts}", node_id, "inferred",
+                        json.dumps({"ts": ts, "tier": _scalar(args[0], 40)}, sort_keys=True))
         return
     effort = _scalar(args[4], 40) if len(args) > 4 else None
     detail = json.dumps({"tier": _scalar(args[0], 40), "effort": effort, "ts": ts}, sort_keys=True)
