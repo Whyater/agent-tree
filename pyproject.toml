@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-tree"
+version = "0.1.0"
+description = "See where your AI agent compute goes: reconstructs Claude Code, Codex and T3 Code agent trees from local transcripts."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Abyan" }]
+keywords = ["claude-code", "codex", "agents", "observability", "tokens", "cost"]
+classifiers = [
+  "Environment :: Console",
+  "Environment :: Web Environment",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+]
+dependencies = []
+
+[project.scripts]
+att = "agent_tree.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["agent_tree*"]
+
+[tool.setuptools.package-data]
+agent_tree = ["web/*", "web/**/*", "defaults/*"]

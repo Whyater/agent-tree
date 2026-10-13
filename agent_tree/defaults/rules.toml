@@ -1,0 +1,58 @@
+# Flag rules. Each rule can be turned off with enabled = false.
+# severity: "alert" (red) or "warn" (amber). Rules marked heuristic guess from
+# short task descriptions and are labelled "heuristic" wherever they appear.
+
+[depth]
+enabled = true
+severity = "warn"
+max_depth = 4                 # root is depth 0
+
+[concurrency]
+enabled = true
+severity = "warn"
+max_concurrent = 20           # agents running at the same moment in one tree
+
+[blocked_model]
+enabled = true
+severity = "alert"
+models = ["gpt-6-astra"]
+
+[openai_on_ui]
+enabled = true
+severity = "warn"
+heuristic = true
+families = ["openai"]
+keywords = ["ui", "ux", "design", "layout", "css", "swiftui", "screen", "style", "frontend", "front-end", "visual"]
+
+[same_family_critic]
+enabled = true
+severity = "warn"
+heuristic = true
+critic_keywords = ["critic", "review", "reviewer", "audit", "verify", "verifier"]
+
+[orphan]
+enabled = true
+severity = "warn"
+
+[long_running]
+enabled = true
+severity = "warn"
+max_minutes = 30
+
+[heavy_tokens]
+enabled = true
+severity = "warn"
+max_tokens = 2000000
+
+[expensive_model_trivial_task]
+enabled = true
+severity = "warn"
+heuristic = true
+models = ["claude-opus-5-5", "claude-fable-5-1", "gpt-6-astra"]
+keywords = ["scan", "grep", "count", "list files", "lint", "format", "rename", "find", "search", "relay"]
+
+[duplicate_tasks]
+enabled = true
+severity = "warn"
+heuristic = true
+similarity = 0.9              # 0..1, compared on normalized descriptions

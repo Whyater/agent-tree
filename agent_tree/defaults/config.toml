@@ -1,0 +1,30 @@
+# Agent Tree settings. This file lives in ~/.agent-tree/config.toml.
+# Delete it and run `att scan` to get the defaults back.
+
+[sources]
+# Where each tool keeps its data. Defaults are the standard install locations.
+claude_dir = "~/.claude"
+codex_dir = "~/.codex"
+t3_dir = "~/.t3"
+# Folders where the codex-agent.sh wrapper writes <task>.md/.out/.log/.meta.json.
+wrapper_dirs = ["/tmp/codex-tasks"]
+
+[privacy]
+# true = store no task descriptions, titles or prompts at all, only metadata.
+# Changing this needs a full rescan: `att scan --full`.
+metadata_only = false
+# Maximum characters kept from any description (hard cap is 160).
+text_limit = 160
+
+[server]
+port = 8711
+
+[covered_by_plan]
+# Set a family to true when its usage is covered by a subscription or promo.
+# Tokens are still shown; the dollar estimate is greyed out and excluded from totals.
+anthropic = false
+openai = false
+
+[display]
+# IANA zone used for "today" and daily buckets. Empty = system local time.
+timezone = ""
