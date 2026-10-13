@@ -1,0 +1,7 @@
+{"timestamp": "2026-10-01T00:09:00Z", "type": "session_meta", "payload": {"id": "old", "timestamp": "2026-10-01T00:10:00Z", "cwd": "/work/codex-demo", "agent_path": "/root/old", "forked_from_id": "root"}}
+{"timestamp": "2026-10-01T00:09:01Z", "type": "event_msg", "payload": {"type": "task_started", "started_at": "2026-10-01T00:09:01Z"}}
+{"timestamp": "2026-10-01T00:09:02Z", "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 99, "cached_input_tokens": 9, "cache_write_input_tokens": 1, "output_tokens": 99, "reasoning_output_tokens": 2, "total_tokens": 207}}}}
+{"timestamp": "2026-10-01T00:10:01Z", "type": "turn_context", "payload": {"model": "gpt-5.1", "effort": "medium"}}
+{"timestamp": "2026-10-01T00:10:02Z", "type": "event_msg", "payload": {"type": "task_started", "started_at": "2026-10-01T00:10:02Z"}}
+{"timestamp": "2026-10-01T00:10:03Z", "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 9, "cached_input_tokens": 1, "cache_write_input_tokens": 0, "output_tokens": 4, "reasoning_output_tokens": 1, "total_tokens": 13}}}}
+{"timestamp": "2026-10-01T00:10:04Z", "type": "event_msg", "payload": {"type": "task_complete", "last_agent_message": "old secret"}}
