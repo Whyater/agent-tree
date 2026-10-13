@@ -266,7 +266,7 @@ def _thread_summary(root: dict, st: dict, totals: dict | None, titles: dict, fla
     if root["source"] == "t3" and child_title:
         title = t3_title or child_title
     sources = [s for s in (st.get("srcs") or "").split(",") if s]
-    order = ["t3", "wrapper", "claude-code", "codex"]
+    order = ["t3", "claude-code", "wrapper", "codex"]
     sources.sort(key=lambda s: order.index(s) if s in order else 9)
     path = root.get("project_path")
     return {

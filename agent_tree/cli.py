@@ -80,8 +80,8 @@ def _do_scan(conn, cfg, full: bool, quiet: bool = False) -> None:
     n = conn.execute("SELECT COUNT(*) FROM nodes WHERE tree_id IS NOT NULL").fetchone()[0]
     t = conn.execute("SELECT COUNT(*) FROM nodes WHERE tree_id = id").fetchone()[0]
     f = conn.execute("SELECT COUNT(*) FROM flags").fetchone()[0]
-    print(f"\n{bold(f'{t:,}')} threads, {n:,} agents, {f} flags. {mode}scan took {secs:.1f}s.".replace(
-        "{mode}", "Full " if full else "Incremental "))
+    mode = "Full" if full else "Incremental"
+    print(f"\n{bold(f'{t:,}')} threads, {n:,} agents, {f} flags. {mode} scan took {secs:.1f}s.")
 
 
 # --- commands -----------------------------------------------------------------------

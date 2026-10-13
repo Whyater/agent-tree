@@ -56,7 +56,8 @@ def _text(n: dict) -> str:
 
 
 def _norm_desc(text: str | None) -> str:
-    return re.sub(r"[^a-z ]+", " ", (text or "").lower()).strip()
+    # Digits stay: "report 01" and "report 02" are different tasks.
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).split())
 
 
 def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
@@ -64,7 +65,8 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
     nodes = [
         dict(r)
         for r in conn.execute(
-            """SELECT n.*, t.self_input + t.self_cached + t.self_cache_write + t.self_output AS self_total
+            """SELECT n.*, t.self_input + t.self_cached + t.self_cache_write + t.self_output AS self_total,
+                      t.self_input + t.self_cache_write + t.self_output AS self_uncached
                FROM nodes n LEFT JOIN node_totals t ON t.node_id = n.id
                WHERE n.tree_id IS NOT NULL"""
         )
@@ -122,7 +124,7 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
             if kw and n["family"] in families and n["kind"] not in ROOT_KINDS:
                 m = kw.search(_text(n))
                 if m:
-                    add("openai_on_ui", r, n, f"{n['model'] or n['family']} on a task mentioning '{m.group(1)}' (heuristic)")
+                    add("openai_on_ui", r, n, f"{n['model'] or n['family']} on a task mentioning '{m.group(1)}'")
 
     if r := rule("same_family_critic"):
         kw = _keyword_re(r.get("critic_keywords"))
@@ -137,7 +139,7 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
                 builder = next((b for b in reversed(group[:i]) if b["family"] and not kw.search(_text(b))), None)
                 if builder and builder["family"] == n["family"]:
                     add("same_family_critic", r, n,
-                        f"Reviewer ({n['model']}) is from the same family as the builder it likely reviewed ({builder['model']}) (heuristic)")
+                        f"Reviewer ({n['model']}) is from the same family as the builder it likely reviewed ({builder['model']})")
 
     if r := rule("orphan"):
         for n in nodes:
@@ -157,11 +159,13 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
     if r := rule("heavy_tokens"):
         limit = int(r.get("max_tokens", 2_000_000))
         include_roots = bool(r.get("include_roots", False))
+        field = "self_total" if r.get("count_cache_reads", False) else "self_uncached"
+        what = "tokens" if field == "self_total" else "tokens excluding cache reads"
         for n in nodes:
             if n["kind"] in ROOT_KINDS and not include_roots:
                 continue
-            if (n["self_total"] or 0) > limit:
-                add("heavy_tokens", r, n, f"Used {n['self_total']:,} tokens (limit {limit:,})")
+            if (n[field] or 0) > limit:
+                add("heavy_tokens", r, n, f"Used {n[field]:,} {what} (limit {limit:,})")
 
     if r := rule("expensive_model_trivial_task"):
         expensive = {m.lower() for m in r.get("models", [])}
@@ -171,10 +175,10 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
                 m = kw.search(_text(n))
                 if m:
                     add("expensive_model_trivial_task", r, n,
-                        f"{n['model']} used for a task that looks like '{m.group(1)}' (heuristic)")
+                        f"{n['model']} used for a task that looks like '{m.group(1)}'")
 
     if r := rule("duplicate_tasks"):
-        threshold = float(r.get("similarity", 0.9))
+        threshold = float(r.get("similarity", 0.95))
         trees = defaultdict(list)
         for n in nodes:
             d = _norm_desc(n["description"])
@@ -185,10 +189,18 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
             items = items[:400]
             seen: list[tuple[str, dict]] = []
             for _, d, n in items:
+                words = set(d.split())
                 for prev_d, prev in seen:
-                    sm = SequenceMatcher(None, prev_d, d)
-                    if sm.real_quick_ratio() >= threshold and sm.quick_ratio() >= threshold and sm.ratio() >= threshold:
-                        add("duplicate_tasks", r, n, f"Near-identical to an earlier task: \"{clean_text(prev['description'], limit=80)}\" (heuristic)")
+                    prev_words = set(prev_d.split())
+                    if words == prev_words:
+                        dup = True
+                    elif any(any(ch.isdigit() for ch in w) for w in words ^ prev_words):
+                        dup = False  # "report 01" vs "report 02": a batch, not a repeat
+                    else:
+                        sm = SequenceMatcher(None, prev_d, d)
+                        dup = sm.real_quick_ratio() >= threshold and sm.quick_ratio() >= threshold and sm.ratio() >= threshold
+                    if dup:
+                        add("duplicate_tasks", r, n, f"Near-identical to an earlier task: \"{clean_text(prev['description'], limit=80)}\"")
                         break
                 seen.append((d, n))
 

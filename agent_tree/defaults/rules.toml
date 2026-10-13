@@ -43,7 +43,8 @@ include_roots = false        # top-level sessions are often long by design
 [heavy_tokens]
 enabled = true
 severity = "warn"
-max_tokens = 2000000         # self tokens, including cache reads
+max_tokens = 2000000         # tokens the agent itself used
+count_cache_reads = false    # cache reads are cheap and repeat every turn; true counts them too
 include_roots = false
 
 [expensive_model_trivial_task]
@@ -57,4 +58,4 @@ keywords = ["scan", "grep", "count", "list files", "lint", "format", "rename", "
 enabled = true
 severity = "warn"
 heuristic = true
-similarity = 0.9              # 0..1, compared on normalized descriptions
+similarity = 0.95             # 0..1 on normalized descriptions; tasks differing in a numbered token never match

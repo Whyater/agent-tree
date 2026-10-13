@@ -125,11 +125,12 @@ def first_meta(path):
 
 
 def codex(thread_id):
-    metas = {}
+    metas, files_of = {}, {}
     for f in codex_files():
         m = first_meta(f)
         if m and m.get("id"):
             metas.setdefault(m["id"], (f, m))
+            files_of.setdefault(m["id"], []).append(f)  # long threads continue in "<id>_<suffix>" files
     children = {}
     for tid, (_, m) in metas.items():
         spawn = ((m.get("source") or {}) if isinstance(m.get("source"), dict) else {}).get("subagent", {}).get("thread_spawn") or {}
@@ -144,16 +145,17 @@ def codex(thread_id):
             stack.extend(children.get(t, []))
     totals = {}
     for t in tree:
-        f, m = metas[t]
-        cutoff = m.get("subagent_history_start_ordinal")
-        last = None
-        for o in lines(f):
-            if cutoff is not None and isinstance(o.get("ordinal"), int) and o["ordinal"] < cutoff:
-                continue
-            p = o.get("payload") or {}
-            if o.get("type") == "event_msg" and p.get("type") == "token_count" and p.get("info"):
-                last = p["info"].get("total_token_usage") or last
-        totals[t] = last or {}
+        last, last_ts = None, ""
+        for f in files_of[t]:
+            cutoff = (first_meta(f) or {}).get("subagent_history_start_ordinal")
+            for o in lines(f):
+                if cutoff is not None and isinstance(o.get("ordinal"), int) and o["ordinal"] < cutoff:
+                    continue
+                p = o.get("payload") or {}
+                if o.get("type") == "event_msg" and p.get("type") == "token_count" and p.get("info"):
+                    if (o.get("timestamp") or "") >= last_ts and p["info"].get("total_token_usage"):
+                        last, last_ts = p["info"]["total_token_usage"], o.get("timestamp") or ""
+        totals[t] = last or {}  # the counter is cumulative across continuation files
     mine_total = sum(int(v.get("input_tokens") or 0) + int(v.get("output_tokens") or 0) for v in totals.values())
     mine_out = sum(int(v.get("output_tokens") or 0) for v in totals.values())
     mine_cached = sum(int(v.get("cached_input_tokens") or 0) for v in totals.values())
