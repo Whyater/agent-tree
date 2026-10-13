@@ -1,7 +1,7 @@
 # Proposal: make `codex-agent.sh` wrapper runs self-describing
 
-**Status: proposed, not applied.** The exact diff is in
-[`codex-agent-wrapper.patch`](codex-agent-wrapper.patch).
+**Status: optional.** A complete example wrapper with these changes is in
+[`examples/codex-agent.sh`](../../examples/codex-agent.sh); diff it against your own.
 
 Some setups route work from a Claude orchestrator to OpenAI Codex through a
 small wrapper script (`codex-agent.sh <sol|luna> <sandbox> <workdir> <task-file> [effort]`)
@@ -43,7 +43,11 @@ keeps only stderr.
 
 ## Apply
 
+Compare the example with your wrapper and copy over the parts you want:
+
 ```sh
-cd ~ && patch -p1 --dry-run < /path/to/agent-tree/docs/proposals/codex-agent-wrapper.patch
-cd ~ && patch -p1 < /path/to/agent-tree/docs/proposals/codex-agent-wrapper.patch
+diff -u ~/.claude/bin/codex-agent.sh examples/codex-agent.sh
 ```
+
+Agent Tree picks up `.meta.json` sidecars automatically on the next scan; there
+is nothing to configure.

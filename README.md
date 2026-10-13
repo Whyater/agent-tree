@@ -137,9 +137,9 @@ att config [--reset prices.toml]  show or reset the settings files
 Thread ids accept any node id in the tree, a bare session id, or a unique prefix.
 
 ```text
-$ att tree 6d4f --subtree
+$ att tree 3b9e --subtree
 Ship the billing export
-cc:6d4f4448-…  ·  ~/Projects/billing  ·  t3 → claude-code → codex
+t3:3b9e17c2-…  ·  ~/Projects/billing  ·  t3 → claude-code → codex
 9 agents, depth 3, 41m 07s, 6.8M tokens, est. $9.12
 
 Ship the billing export · claude-opus-5-5 · 41m 07s · 6.8M tok · $9.12
