@@ -94,24 +94,27 @@ def cmd_scan(args, cfg):
 
 def cmd_serve(args, cfg):
     from .server import serve
-    port = args.port or cfg.port
-    if not _port_free(port):
+    port = cfg.port if args.port is None else args.port
+    if port and not _port_free(port):
         url = f"http://127.0.0.1:{port}/"
         print(f"Port {port} is busy. If Agent Tree is already running, open {url}")
         if args.open:
             import webbrowser
             webbrowser.open(url)
         return 1
-    serve(cfg, port=port, open_browser=args.open, scan_first=not args.no_scan, rescan_every=args.rescan)
+    serve(cfg, port=port, open_browser=args.open, scan_first=not args.no_scan, rescan_every=args.rescan,
+          ready_file=getattr(args, "ready_file", None), parent_pid=getattr(args, "parent_pid", None))
 
 
 def _port_free(port: int) -> bool:
+    """True unless something is actually accepting connections on the port.
+
+    (A bind test gives false "busy" results while old connections sit in
+    TIME_WAIT, e.g. right after a browser tab was talking to a stopped server.)
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(("127.0.0.1", port))
-            return True
-        except OSError:
-            return False
+        s.settimeout(0.3)
+        return s.connect_ex(("127.0.0.1", port)) != 0
 
 
 def _cost_cell(m: dict) -> str:
@@ -160,7 +163,7 @@ def cmd_tree(args, cfg):
         return
     t = detail["thread"]
     print(bold(t["title"] or t["id"]))
-    print(dim(f"{t['id']}  ·  {t['project_path'] or '—'}  ·  {' → '.join(t['sources'])}"))
+    print(dim(f"{t['id']}  ·  {t['project_path'] or '-'}  ·  {' → '.join(t['sources'])}"))
     print(f"{t['node_count']} agents, depth {t['max_depth']}, {export.fmt_ms(t['wall_ms'])}, "
           f"{export.fmt_tokens(t['tokens']['total'])} tokens, est. {_cost_cell(t['money'])}\n")
     nodes = detail["nodes"]
@@ -370,6 +373,37 @@ def cmd_config(args, cfg):
     print(f"Index: {cfg.db_path}")
 
 
+def cmd_integrations(args, cfg):
+    from . import integrations
+    if args.action == "show":
+        st = integrations.status(cfg)
+        c = st["claude"]
+        print(f"Claude Code  {'connected' if c['connected'] else 'not connected'}  (status line: {c['statusline']}, hooks: {c['hooks']})")
+        for name in ("codex", "t3", "vorssaint"):
+            print(f"{name:<12} {'installed' if st[name]['installed'] else 'not installed'}")
+        if not c["connected"]:
+            print(dim("\nRun `att connect claude` to add live subagent hooks and the limits status line."))
+        return
+    if args.tool != "claude":
+        print("Only Claude Code needs connecting; Codex and T3 Code are read directly.")
+        return 1
+    if args.action == "connect":
+        st = integrations.status(cfg)["claude"]
+        print(st["preview"])
+        if not args.yes and input("\nApply? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("Nothing changed.")
+            return 1
+        res = integrations.connect_claude(cfg)
+    else:
+        res = integrations.disconnect_claude(cfg)
+    if not res["ok"]:
+        print(red(res["error"]), file=sys.stderr)
+        return 1
+    print(green("Done.") + (f" Backup: {res['backup']}" if res.get("backup") else ""))
+    if res.get("note"):
+        print(res["note"])
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="att", description="Agent Tree: see where your AI agent compute goes.")
     p.add_argument("--version", action="version", version=f"agent-tree {__version__}")
@@ -384,11 +418,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--open", action="store_true", help="open a browser tab")
     s.add_argument("--no-scan", action="store_true", help="don't rescan on startup")
     s.add_argument("--rescan", type=int, default=60, metavar="SECONDS", help="rescan interval while running (0 = off, default 60)")
+    s.add_argument("--no-open", action="store_true", help=argparse.SUPPRESS)  # the default; accepted for apps
+    s.add_argument("--ready-file", metavar="PATH", help="write {port, pid, version} here once listening (use with --port 0)")
+    s.add_argument("--parent-pid", type=int, metavar="PID", help="exit when this process exits")
     s.set_defaults(fn=cmd_serve)
 
     s = sub.add_parser("open", help="start the UI and open it in the browser")
     s.add_argument("--port", type=int)
-    s.set_defaults(fn=lambda a, c: cmd_serve(argparse.Namespace(port=a.port, open=True, no_scan=False, rescan=60), c))
+    s.set_defaults(fn=lambda a, c: cmd_serve(argparse.Namespace(port=a.port, open=True, no_scan=False, rescan=60, ready_file=None, parent_pid=None), c))
 
     s = sub.add_parser("threads", help="list threads, newest first")
     s.add_argument("--project")
@@ -429,6 +466,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--until")
     s.add_argument("-o", "--output")
     s.set_defaults(fn=cmd_export)
+
+    s = sub.add_parser("integrations", help="show live integrations")
+    s.set_defaults(fn=cmd_integrations, action="show", tool=None)
+    for verb in ("connect", "disconnect"):
+        s = sub.add_parser(verb, help=f"{verb} live tracking for a tool (claude)")
+        s.add_argument("tool", choices=["claude"])
+        if verb == "connect":
+            s.add_argument("--yes", "-y", action="store_true", help="don't ask for confirmation")
+        s.set_defaults(fn=cmd_integrations, action=verb, yes=False)
 
     s = sub.add_parser("doctor", help="check sources, parsers and settings")
     s.set_defaults(fn=cmd_doctor)

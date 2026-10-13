@@ -7,6 +7,7 @@ rebinding guard) and requires a custom header on POST (CSRF guard).
 from __future__ import annotations
 
 import json
+import os
 import mimetypes
 import threading
 import time
@@ -127,6 +128,17 @@ def make_handler(cfg: Config, scan_state: ScanState):
                     full = False
                 result = scan_state.run(cfg, full=full)
                 return self._json(result, 200 if result.get("ok") else 409 if result.get("scan_running") else 500)
+            if url.path == "/api/integrations/claude":
+                from . import integrations
+                try:
+                    action = json.loads(body or b"{}").get("action")
+                except (ValueError, AttributeError):
+                    action = None
+                if action == "connect":
+                    return self._json(integrations.connect_claude(cfg))
+                if action == "disconnect":
+                    return self._json(integrations.disconnect_claude(cfg))
+                return self._error(HTTPStatus.BAD_REQUEST, 'action must be "connect" or "disconnect"')
             return self._error(HTTPStatus.NOT_FOUND, "unknown endpoint")
 
         def _static(self, path: str) -> None:
@@ -169,6 +181,17 @@ def make_handler(cfg: Config, scan_state: ScanState):
                     return self._json(queries.projects(conn, cfg, qs.get("since", "90d")))
                 if path == "/api/models":
                     return self._json(queries.models(conn, cfg, qs.get("since", "30d")))
+                if path == "/api/integrations":
+                    from .integrations import status
+                    return self._json(status(cfg))
+                if path == "/api/limits":
+                    from .limits import read_limits
+                    return self._json(read_limits(cfg))
+                if path == "/api/now":
+                    return self._json(queries.now(conn, cfg))
+                if path == "/api/verify":
+                    from .verify import run_checks
+                    return self._json(run_checks(conn, cfg))
                 if path == "/api/flags":
                     return self._json(queries.flags(conn, cfg, qs.get("since"), qs.get("rule"), qs.get("severity")))
                 if path.startswith("/api/export/"):
@@ -213,13 +236,39 @@ def make_handler(cfg: Config, scan_state: ScanState):
     return Handler
 
 
+def _write_ready_file(path: str, port: int) -> None:
+    """Tell the launching app which port we got. Written atomically."""
+    from . import __version__
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"port": port, "pid": os.getpid(), "version": __version__}, fh)
+    os.replace(tmp, path)
+
+
+def _exit_with_parent(httpd, parent_pid: int) -> None:
+    while True:
+        time.sleep(2)
+        try:
+            os.kill(parent_pid, 0)
+        except ProcessLookupError:
+            httpd.shutdown()
+            return
+        except PermissionError:
+            pass  # exists, owned by someone else: still alive
+
+
 def serve(cfg: Config, port: int | None = None, open_browser: bool = False, scan_first: bool = True,
-          rescan_every: int = 0) -> None:
-    port = port or cfg.port
+          rescan_every: int = 0, ready_file: str | None = None, parent_pid: int | None = None) -> None:
+    port = cfg.port if port is None else port
     scan_state = ScanState()
     httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(cfg, scan_state))
     httpd.daemon_threads = True
+    port = httpd.server_address[1]  # the real port when 0 was asked for
     url = f"http://127.0.0.1:{port}/"
+    if ready_file:
+        _write_ready_file(ready_file, port)
+    if parent_pid:
+        threading.Thread(target=_exit_with_parent, args=(httpd, parent_pid), daemon=True).start()
 
     def background():
         if scan_first:

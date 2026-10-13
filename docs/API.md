@@ -128,3 +128,48 @@ Query: `since`, `rule`, `severity`. Returns `{ "flags": [ Flag ], "rules": [ { "
 - `GET /api/export/range.json?since=7d&until=` and `/api/export/range.csv?...` one row per node in the range
 
 Exports set `Content-Disposition: attachment`.
+
+## Menu bar endpoints
+
+### Starting the server for an app
+
+`att serve --port 0 --ready-file PATH --no-open` binds a free port on 127.0.0.1 and,
+once it is listening, writes `{"port": 51234, "pid": 4242, "version": "0.2.0"}` to
+PATH (atomically). Apps read the port from there. The server exits when its
+parent process goes away if `--parent-pid PID` is given.
+
+### `GET /api/limits`
+Plan usage limits, read from local files only (no network).
+```jsonc
+{ "providers": [
+  { "provider": "codex", "available": true, "plan": "prolite",
+    "as_of": "2026-10-13T08:11:52.861Z",   // when the tool last recorded it
+    "stale": false,                         // as_of older than 6 hours
+    "source": "Codex session logs",
+    "reason": null,                         // why unavailable, when available=false
+    "windows": [ { "id": "seven_day", "label": "Week", "used_percent": 2.0,
+                   "window_minutes": 10080, "resets_at": "2026-10-19T21:38:24.000Z" } ] },
+  { "provider": "claude", "available": false, "plan": null, "as_of": null, "stale": false,
+    "source": "Claude Code status line",
+    "reason": "Claude Code only shares limits with a status-line script. Turn it on in Settings.",
+    "windows": [] } ] }
+```
+Window ids: `five_hour` (label "Session"), `seven_day` (label "Week"), otherwise `custom`
+with a label like "8h". `used_percent` is 0 to 100 (can exceed 100 once a limit is hit).
+
+### `GET /api/now`
+Trees with activity in the last 10 minutes.
+```jsonc
+{ "running": [ { "thread_id": "t3:…", "title": "…", "project_name": "agent-tree",
+                 "model": "claude-opus-5-5", "family": "anthropic",
+                 "started": "…", "last_activity": "…", "agents_running": 3,
+                 "tokens": Tokens, "money": Money } ] }
+```
+
+### `GET /api/verify`
+Cross-checks against other tools on this Mac, when installed.
+```jsonc
+{ "checks": [ { "id": "t3-usage", "label": "Token totals vs T3 Code",
+                "status": "match",   // match | mismatch | unavailable
+                "detail": "641 of 641 transcripts agree", "compared": 641, "matched": 641 } ] }
+```

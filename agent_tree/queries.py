@@ -545,3 +545,41 @@ def range_nodes(conn, cfg, since=None, until=None) -> list[dict]:
     totals = {r["node_id"]: dict(r) for r in conn.execute("SELECT * FROM node_totals")}
     rows_ = [dict(r) for r in conn.execute(f"SELECT n.* FROM nodes n WHERE {' AND '.join(where)} ORDER BY n.tree_id, n.depth, n.started", params)]
     return [_node_out(n, totals.get(n["id"]), cfg, {}, {}) for n in rows_]
+
+
+def now(conn, cfg, window_minutes: int = 10) -> dict:
+    """Trees with activity in the last few minutes, for the menu bar "Now" card."""
+    cutoff = to_utc_iso(datetime.now(timezone.utc) - timedelta(minutes=window_minutes))
+    active = conn.execute(
+        """SELECT tree_id, MAX(COALESCE(ended, started)) last,
+                  SUM(CASE WHEN kind NOT IN ('root', 't3-thread') AND COALESCE(ended, started) >= ? THEN 1 ELSE 0 END) busy
+           FROM nodes WHERE tree_id IS NOT NULL GROUP BY tree_id HAVING last >= ? ORDER BY last DESC LIMIT 10""",
+        (cutoff, cutoff)).fetchall()
+    if not active:
+        return {"running": []}
+    titles = _titles(conn)
+    flag_counts = dict(conn.execute("SELECT tree_id, COUNT(*) FROM flags GROUP BY tree_id").fetchall())
+    out = []
+    for row in active:
+        tree_id = row["tree_id"]
+        root = conn.execute("SELECT * FROM nodes WHERE id = ?", (tree_id,)).fetchone()
+        if root is None:
+            continue
+        root = dict(root)
+        totals = conn.execute("SELECT * FROM node_totals WHERE node_id = ?", (tree_id,)).fetchone()
+        child_title = conn.execute(
+            "SELECT s.title FROM nodes n JOIN sessions s ON s.id = n.session_id WHERE n.parent_id = ? AND s.title IS NOT NULL ORDER BY n.started LIMIT 1",
+            (tree_id,)).fetchone()
+        summ = _thread_summary(root, _tree_stats_one(conn, tree_id), dict(totals) if totals else None, titles,
+                               flag_counts.get(tree_id, 0), child_title[0] if child_title else None)
+        # The model doing the work: the most recently active node with a model.
+        lead = conn.execute(
+            "SELECT model, family FROM nodes WHERE tree_id = ? AND model IS NOT NULL ORDER BY COALESCE(ended, started) DESC LIMIT 1",
+            (tree_id,)).fetchone()
+        out.append({
+            "thread_id": tree_id, "title": summ["title"], "project_name": summ["project_name"],
+            "model": lead["model"] if lead else None, "family": lead["family"] if lead else None,
+            "started": summ["started"], "last_activity": row["last"], "agents_running": row["busy"] or 0,
+            "tokens": summ["tokens"], "money": summ["money"],
+        })
+    return {"running": out}

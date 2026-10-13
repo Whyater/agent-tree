@@ -22,7 +22,7 @@ parent subagent's own transcript, so the link points at that subagent.
 | Link | Evidence | Confidence |
 |---|---|---|
 | child thread → parent thread | `session_meta.source.subagent.thread_spawn.parent_thread_id`, or `parent_thread_id` on a subagent thread | exact |
-| child thread whose parent rollout isn't on disk | — | orphan |
+| child thread whose parent rollout isn't on disk | none | orphan |
 
 `forked_from_id` alone (a user fork) is recorded but not treated as a parent.
 A thread that continues into `rollout-…-<id>_<suffix>.jsonl` files is one node;
@@ -62,7 +62,7 @@ A wrapper such as `codex-agent.sh <tier> <sandbox> <workdir> <task-file>` runs
 | Codex session → wrapper run | `<task>.meta.json` `codex_session_id`, or the `session id:` header `codex exec` prints into `<task>.log` | exact |
 | Codex session → wrapper run | a Codex session that started within 120 s of the task file, in the same working directory | inferred |
 | wrapper run → Claude subagent | the `Bash` call passed the task file through a shell variable (`"$F"`), so only its time is known: the nearest such call within 10 minutes after the task file was written | inferred |
-| wrapper run, caller not found | — | orphan |
+| wrapper run, caller not found | none | orphan |
 
 ## What is still uncertain
 

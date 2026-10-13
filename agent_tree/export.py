@@ -87,7 +87,7 @@ def thread_markdown(detail: dict) -> str:
         f"### Agent tree: {t['title'] or t['id']}",
         "",
         f"- Thread: `{t['id']}` ({' → '.join(t['sources'])})",
-        f"- Project: `{t['project_path'] or '—'}`",
+        f"- Project: `{t['project_path'] or '-'}`",
         f"- When: {t['started'] or '?'} → {t['ended'] or '?'} ({fmt_ms(t['wall_ms'])})",
         f"- Agents: {t['node_count']}, max depth {t['max_depth']}",
         f"- Tokens: {fmt_tokens(t['tokens']['total'])} (in {fmt_tokens(t['tokens']['input'])}, cached {fmt_tokens(t['tokens']['cached_input'])}, "
