@@ -1,5 +1,5 @@
 // Models: usage per family and model, daily split, task-type share (heuristic).
-import { h, clear, fmtTokens, fmtInt, costEl, modelBadge, famClass, FAMILY_LABEL, FAMILY_ORDER } from "../util.js";
+import { h, clear, fmtTokens, fmtInt, costEl, modelBadge, famClass, FAMILY_LABEL, FAMILY_ORDER, threadsSince } from "../util.js";
 import { api } from "../api.js";
 import { loadingState, errorState, emptyState, firstRunState, dailyStackedChart, familyLegend, RowNav } from "../ui.js";
 
@@ -77,7 +77,7 @@ export function mount(ctx) {
         h("thead", null, h("tr", null, h("th", null, "Model"), h("th", null, "Id"), h("th", { class: "num" }, "Threads"), h("th", { class: "num" }, "Agents"),
           h("th", { class: "num" }, "Tokens"), h("th", null, "Relative volume"), h("th", { class: "num" }, "Est. cost"), h("th", null, "Price"))),
         h("tbody", null, rows))));
-    nav = new RowNav(rows, (i) => ctx.navigate(ctx.buildHash("/threads", { model: models[i].model, since: q.since === "7d" ? "7d" : "all" })));
+    nav = new RowNav(rows, (i) => ctx.navigate(ctx.buildHash("/threads", { model: models[i].model, since: threadsSince(q.since || "30d") })));
 
     // task type matrix
     const usedTasks = TASKS.filter((t) => models.some((m) => (m.by_task_type || []).some((x) => x.task_type === t)));

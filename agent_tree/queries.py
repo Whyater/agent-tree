@@ -112,7 +112,16 @@ def tokens(i=0, c=0, w=0, o=0, r=0) -> dict:
 
 
 def money(cost=0.0, covered=0.0, unpriced=0) -> dict:
-    return {"cost": round(float(cost or 0), 6), "cost_known": not unpriced, "covered_cost": round(float(covered or 0), 6)}
+    """cost is None when nothing in the aggregate has a price (shown as "?")."""
+    cost, covered = float(cost or 0), float(covered or 0)
+    if unpriced and not cost and not covered:
+        return {"cost": None, "cost_known": False, "covered_cost": 0.0}
+    return {"cost": round(cost, 6), "cost_known": not unpriced, "covered_cost": round(covered, 6)}
+
+
+def spend(m: dict) -> float:
+    """Sort key: everything the usage would cost at API prices."""
+    return (m["cost"] or 0.0) + (m["covered_cost"] or 0.0)
 
 
 def _covered_sql(cfg: Config) -> str:
@@ -238,7 +247,7 @@ def summary(conn, cfg) -> dict:
     }
     since = to_utc_iso(local_midnight(cfg, today - timedelta(days=29)))
     top = list_threads(conn, cfg, since=since, sort="cost", limit=10)["threads"]
-    counts = dict(conn.execute("SELECT severity, COUNT(*) FROM flags GROUP BY severity").fetchall())
+    counts = dict(conn.execute("SELECT severity, COUNT(*) FROM flags WHERE COALESCE(ts, '') >= ? GROUP BY severity", (since,)).fetchall())
     return {"periods": periods, "daily": daily(conn, cfg, 30), "top_threads": top,
             "flag_count": sum(counts.values()), "flag_counts": {"alert": counts.get("alert", 0), "warn": counts.get("warn", 0)}}
 
@@ -323,7 +332,7 @@ def list_threads(conn, cfg, project=None, source=None, model=None, since=None, u
             continue
         out.append(summ)
     keyfn = {
-        "cost": lambda t: (t["money"]["cost"] + t["money"]["covered_cost"], t["tokens"]["total"]),
+        "cost": lambda t: (spend(t["money"]), t["tokens"]["total"]),
         "tokens": lambda t: t["tokens"]["total"],
     }.get(sort, lambda t: t["started"] or "")
     out.sort(key=keyfn, reverse=True)
@@ -447,7 +456,7 @@ def projects(conn, cfg, since: str | None = "90d") -> dict:
             "threads": r["threads"], "nodes": r["nodes"], "tokens": t, "money": m,
             "daily": [{"day": d, "total": per_day[path][d][0], "cost": round(per_day[path][d][1], 6)} for d in day_list],
         })
-    out.sort(key=lambda p: (p["money"]["cost"] + p["money"]["covered_cost"], p["tokens"]["total"]), reverse=True)
+    out.sort(key=lambda p: (spend(p["money"]), p["tokens"]["total"]), reverse=True)
     return {"projects": out}
 
 
@@ -472,7 +481,7 @@ def models(conn, cfg, since: str | None = "30d") -> dict:
             "by_task_type": sorted(({"task_type": k, "nodes": v[0], "total": v[1]} for k, v in per_model_types[r["model"]].items()),
                                    key=lambda x: -x["total"]),
         })
-    out.sort(key=lambda x: (x["money"]["cost"] + x["money"]["covered_cost"], x["tokens"]["total"]), reverse=True)
+    out.sort(key=lambda x: (spend(x["money"]), x["tokens"]["total"]), reverse=True)
     fams = []
     for r in conn.execute(f"SELECT COALESCE(u.family,'other') fam, {sel}, COUNT(DISTINCT u.node_id) nodes {USAGE_JOIN} AND u.ts >= ? GROUP BY fam", (since_iso,)):
         t, m = _tm(r)

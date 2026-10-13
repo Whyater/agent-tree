@@ -8,11 +8,13 @@ evaluates the flag rules.
 
 from __future__ import annotations
 
+import fcntl
 import importlib
 import json
 import sqlite3
 import time
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 from . import db
@@ -24,7 +26,32 @@ SOURCES = ("claude_code", "codex", "t3", "wrapper", "events")  # order matters: 
 RUNNING_WINDOW = timedelta(minutes=10)
 
 
-def scan(conn: sqlite3.Connection, cfg: Config, full: bool = False, only: list[str] | None = None) -> list[SourceStats]:
+class ScanBusy(RuntimeError):
+    """Another process is already scanning this index."""
+
+
+@contextmanager
+def scan_lock(cfg: Config, wait: bool = True):
+    """Cross-process lock so the CLI, the server and the app never scan the same index at once."""
+    cfg.home.mkdir(parents=True, exist_ok=True)
+    with open(cfg.home / "scan.lock", "a+") as fh:
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+        except BlockingIOError as exc:
+            raise ScanBusy("another scan is running") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def scan(conn: sqlite3.Connection, cfg: Config, full: bool = False, only: list[str] | None = None,
+         wait: bool = True) -> list[SourceStats]:
+    with scan_lock(cfg, wait=wait):
+        return _scan(conn, cfg, full, only)
+
+
+def _scan(conn: sqlite3.Connection, cfg: Config, full: bool, only: list[str] | None) -> list[SourceStats]:
     if full:
         db.wipe(conn)
         conn.commit()
@@ -160,10 +187,21 @@ def resolve(conn: sqlite3.Connection, cfg: Config, prices: PriceBook | None = No
             continue
         tree_of[nid], depth_of[nid] = tree, depth
         stack.extend((c, tree, depth + 1) for c in children.get(nid, []))
-    for nid in nodes:  # anything left is in a cycle: break it and make it a root
-        if nid not in tree_of and nid not in hidden:
-            tree_of[nid], depth_of[nid] = nid, 0
-            parent[nid], confidence[nid] = None, "orphan"
+    for nid in sorted(nodes):  # anything left is in a cycle: break it there and walk it as a new root
+        if nid in tree_of or nid in hidden:
+            continue
+        old_parent = parent.get(nid)
+        if old_parent in children and nid in children[old_parent]:
+            children[old_parent].remove(nid)
+        parent[nid], confidence[nid] = None, "orphan"
+        children[None].append(nid)
+        stack = [(nid, nid, 0)]
+        while stack:
+            cur, tree, depth = stack.pop()
+            if cur in tree_of:
+                continue
+            tree_of[cur], depth_of[cur] = tree, depth
+            stack.extend((c, tree, depth + 1) for c in children.get(cur, []))
 
     # 6. Status. Time-based guesses ("running" = touched in the last 10 minutes)
     #    are recomputed on every resolve so they can't go stale; exact

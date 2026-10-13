@@ -42,7 +42,11 @@ export function parseRoute(hash = location.hash) {
   if (parts[0] === "threads") name = "threads";
   else if (parts[0] === "thread" && parts[1]) {
     name = "thread";
-    params.id = decodeURIComponent(parts.slice(1).join("/"));
+    try {
+      params.id = decodeURIComponent(parts.slice(1).join("/"));
+    } catch {
+      name = "notfound"; // malformed %-escape in a hand-edited URL
+    }
   } else if (parts[0] === "projects") name = "projects";
   else if (parts[0] === "models") name = "models";
   else if (parts[0] === "flags") name = "flags";

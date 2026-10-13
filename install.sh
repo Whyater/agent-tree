@@ -47,10 +47,12 @@ else
   SRC="$(find "$TMP" -maxdepth 1 -type d -name 'agent-tree-*' | head -n 1)"
   [ -n "$SRC" ] || die "unexpected archive layout"
 fi
-rm -rf "$PREFIX/app"
-mkdir -p "$PREFIX/app"
-cp -R "$SRC/agent_tree" "$PREFIX/app/"
-find "$PREFIX/app" -name '__pycache__' -type d -prune -exec rm -rf {} +
+# Stage the new copy next to the old one; it only replaces the live one after it runs.
+STAGE="$PREFIX/app.new"
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+cp -R "$SRC/agent_tree" "$STAGE/"
+find "$STAGE" -name '__pycache__' -type d -prune -exec rm -rf {} +
 
 # 2. Python: prefer a system Python 3.11+, else a private standalone build.
 PY=""
@@ -80,7 +82,14 @@ if [ -z "$PY" ]; then
   fi
 fi
 
-# 3. The `att` command.
+# 3. Check the staged copy with the chosen Python, then swap it in.
+PYTHONPATH="$STAGE" "$PY" -m agent_tree --version >/dev/null 2>&1 || { rm -rf "$STAGE"; die "the new version did not start with $PY; your existing install was left as it was"; }
+rm -rf "$PREFIX/app.old"
+[ -d "$PREFIX/app" ] && mv "$PREFIX/app" "$PREFIX/app.old"
+mv "$STAGE" "$PREFIX/app"
+rm -rf "$PREFIX/app.old"
+
+# 4. The `att` command.
 cat > "$BIN_DIR/att" <<EOF
 #!/bin/sh
 PYTHONPATH="$PREFIX/app\${PYTHONPATH:+:\$PYTHONPATH}" exec "$PY" -m agent_tree "\$@"

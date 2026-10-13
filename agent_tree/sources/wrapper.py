@@ -58,12 +58,11 @@ def _read_meta(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _log_fields(path: Path) -> tuple[dict[str, str], bool]:
+def _log_fields(path: Path) -> dict[str, str]:
     """Read at most 200 lines and extract codex's header fields."""
     fields: dict[str, str] = {}
-    failed = False
     if not path.exists() or is_secret_path(path):
-        return fields, failed
+        return fields
     try:
         with path.open("r", encoding="utf-8", errors="replace") as fh:
             for number in range(200):
@@ -83,8 +82,8 @@ def _log_fields(path: Path) -> tuple[dict[str, str], bool]:
                     if match and key not in fields:
                         fields[key] = match.group(1).strip()
     except OSError:
-        return fields, failed
-    return fields, failed
+        return fields
+    return fields
 
 
 def _mtime(path: Path) -> str | None:
@@ -103,7 +102,7 @@ def _first(value: Any, *fallbacks: Any) -> Any:
     return None
 
 
-def _status(meta: dict[str, Any], out: Path, log: Path, failed_in_log: bool) -> str:
+def _status(meta: dict[str, Any], out: Path, log: Path) -> str:
     # A metadata exit code is authoritative whenever present, including a
     # non-integer value which is treated as an unsuccessful wrapper run.
     if "exit_code" in meta and meta.get("exit_code") not in (None, ""):
@@ -124,6 +123,11 @@ def _status(meta: dict[str, Any], out: Path, log: Path, failed_in_log: bool) -> 
     if time.time() - st.st_mtime < 600:
         return "running"
     return "failed" if st.st_size > 0 else "unknown"
+
+
+def _ident(value: Any) -> str | None:
+    """Model, effort, tier, session ids: identifiers, kept in metadata-only mode but capped."""
+    return str(value)[:80] if isinstance(value, (str, int, float)) and str(value) else None
 
 
 def _as_clean(value: Any, cfg: Any) -> str | None:
@@ -191,7 +195,7 @@ def _scan_one(conn: sqlite3.Connection, cfg: Any, task: Path, full: bool, stats:
     conn.execute("DELETE FROM links WHERE from_id=?", (node_id,))
 
     meta = _read_meta(meta_path)
-    log_fields, failed_in_log = _log_fields(log)
+    log_fields = _log_fields(log)
     session_id = _first(meta.get("codex_session_id"), log_fields.get("session_id"))
     model = _first(meta.get("model"), log_fields.get("model"))
     effort = _first(meta.get("effort"), log_fields.get("effort"))
@@ -205,11 +209,11 @@ def _scan_one(conn: sqlite3.Connection, cfg: Any, task: Path, full: bool, stats:
         ended = max((value for value in ended_values if value), default=None)
 
     description = _as_clean(task.stem, cfg)
-    model_clean = _as_clean(model, cfg)
-    effort_clean = _as_clean(effort, cfg)
+    model_clean = _ident(model)
+    effort_clean = _ident(effort)
     workdir_text = str(workdir) if workdir not in (None, "") else None
     extra: dict[str, Any] = {
-        "tier": _as_clean(tier, cfg),
+        "tier": _ident(tier),
         "sandbox": _as_clean(meta.get("sandbox"), cfg),
         "cwd": _as_clean(workdir, cfg),
     }
@@ -218,7 +222,7 @@ def _scan_one(conn: sqlite3.Connection, cfg: Any, task: Path, full: bool, stats:
     # Only keep the session id as metadata.  Prompt, output, and arbitrary log
     # text are never included in the index.
     if session_id:
-        extra["codex_session_id"] = _as_clean(session_id, cfg)
+        extra["codex_session_id"] = _ident(session_id)
     extra = {key: value for key, value in extra.items() if value is not None}
 
     upsert_node(
@@ -226,12 +230,12 @@ def _scan_one(conn: sqlite3.Connection, cfg: Any, task: Path, full: bool, stats:
         node_id,
         source=SOURCE,
         kind="wrapper",
-        agent_type=f"codex-wrapper-{_as_clean(tier, cfg) or 'unknown'}",
+        agent_type=f"codex-wrapper-{_ident(tier) or 'unknown'}",
         description=description,
         model=model_clean,
         family=model_family(str(model) if model is not None else None),
         effort=effort_clean,
-        status=_status(meta, out, log, failed_in_log),
+        status=_status(meta, out, log),
         started=started,
         ended=ended,
         project_path=workdir_text,

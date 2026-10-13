@@ -210,7 +210,6 @@ def _infer_claude(conn: sqlite3.Connection, project_path: str | None, started: s
 
 def _epoch(value: str) -> float:
     try:
-        from datetime import datetime
         return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
     except (TypeError, ValueError, OSError):
         return 0.0
@@ -353,7 +352,7 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
         node_id = f"t3:{thread_id}"
         upsert_node(
             conn, node_id, session_id=node_id, source=SOURCE, kind="t3-thread",
-            agent_type=provider or "t3", description=title,
+            agent_type=_ident(provider) or "t3", description=title,
             model=_ident(model), family=model_family(model),
             effort=_ident(effort), status=status,
             started=started, ended=ended, project_path=str(project_path) if project_path else None,
@@ -365,7 +364,7 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
             raw_file=str(path), parser_version=PARSER_VERSION,
         )
         touch_project(conn, str(project_path) if project_path else None, started or ended)
-        thread_fields[thread_id] = {"node_id": node_id, "project_path": str(project_path) if project_path else None, "started": started, "ended": ended}
+        thread_fields[thread_id] = {"node_id": node_id, "project_path": str(project_path) if project_path else None, "started": started, "ended": ended, "status": status}
         stats.nodes += 1
 
         targets = _runtime_links(thread_id, sessions_by_thread.get(thread_id, []), runtimes_by_thread.get(thread_id, []))
@@ -427,6 +426,9 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
         task_type = _activity_text(payload, {}, "taskType") or _activity_text(payload, {}, "task_type")
         tool_use_id = _activity_text(payload, {}, "toolUseId") or _activity_text(payload, {}, "tool_use_id")
         thread = thread_fields[thread_id]
+        # A task that never reported completion is only "active" while its thread is.
+        if item["status"] == "active" and thread["status"] != "active":
+            item["status"] = "stopped"
         extra = {"agent_path": clean_text(agent_path, cfg.metadata_only, cfg.text_limit), "task_type": clean_text(task_type, cfg.metadata_only, cfg.text_limit), "tool_use_id": clean_text(tool_use_id, cfg.metadata_only, cfg.text_limit)}
         extra = {k: v for k, v in extra.items() if v is not None}
         upsert_node(

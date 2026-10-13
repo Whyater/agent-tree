@@ -126,8 +126,8 @@ def _wrapper_link(conn: sqlite3.Connection, command: Any, node_id: str, ts: str 
     prompt_file = _abs_prompt_path(args[3], cwd)
     if prompt_file is None:
         return
-    effort = args[4] if len(args) > 4 else None
-    detail = json.dumps({"tier": args[0], "effort": effort, "ts": ts}, sort_keys=True)
+    effort = _scalar(args[4], 40) if len(args) > 4 else None
+    detail = json.dumps({"tier": _scalar(args[0], 40), "effort": effort, "ts": ts}, sort_keys=True)
     db.put_link(conn, "wrapper-caller", prompt_file, node_id, "exact", detail)
 
 
@@ -257,12 +257,12 @@ def _record_state(state: dict[str, Any], record: dict[str, Any], ts: str | None,
     if ts:
         state["started"] = _min_ts(state.get("started"), ts)
         state["ended"] = _max_ts(state.get("ended"), ts)
-    session_id = record.get("sessionId")
+    session_id = _scalar(record.get("sessionId"), 80)
     if session_id and not state.get("session_id"):
-        state["session_id"] = str(session_id)
+        state["session_id"] = session_id
     cwd = record.get("cwd")
-    if cwd and not state.get("cwd"):
-        state["cwd"] = str(cwd)
+    if isinstance(cwd, str) and cwd and not state.get("cwd"):
+        state["cwd"] = cwd[:1024]
 
     typ = record.get("type")
     if typ == "ai-title" and "aiTitle" in record:
@@ -490,7 +490,8 @@ def _process_transcript(
         ts = norm_ts(record.get("timestamp"))
         _record_state(state, record, ts, cfg)
         _session_id, record_node_id = _node_state(state, fallback_session, agent_id)
-        _process_record(conn, cfg, record, ts, record_node_id, path, state.get("cwd"))
+        record_cwd = record.get("cwd") if isinstance(record.get("cwd"), str) else state.get("cwd")
+        _process_record(conn, cfg, record, ts, record_node_id, path, record_cwd)
     state["session_id"] = str(state.get("session_id") or fallback_session)
     session_id, node_id = _write_node(conn, cfg, path, fallback_session, agent_id, state, meta)
     touched.add(node_id)

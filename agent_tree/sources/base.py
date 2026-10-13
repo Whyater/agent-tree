@@ -104,7 +104,8 @@ def iter_jsonl(cur: FileCursor) -> Iterator[tuple[int, Any]]:
         fh.seek(cur.offset)
         pos = cur.offset
         for raw in fh:
-            if not raw.endswith(b"\n"):
+            # Stop at the size seen when the scan started; later appends wait for the next scan.
+            if not raw.endswith(b"\n") or pos + len(raw) > cur.size:
                 break
             line_offset = pos
             pos += len(raw)

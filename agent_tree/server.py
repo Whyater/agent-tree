@@ -34,12 +34,15 @@ class ScanState:
     def run(self, cfg: Config, full: bool = False) -> dict:
         if not self.lock.acquire(blocking=False):
             return {"ok": False, "error": "a scan is already running", "scan_running": True}
+        from .indexer import ScanBusy
         self.running = True
         started = time.perf_counter()
         try:
             conn = db.connect(cfg.db_path)
             try:
-                stats = indexer.scan(conn, cfg, full=full)
+                stats = indexer.scan(conn, cfg, full=full, wait=False)
+            except ScanBusy:
+                return {"ok": False, "error": "another process is scanning; try again shortly", "scan_running": True}
             finally:
                 conn.close()
             self.last_result = {"ok": True, "seconds": round(time.perf_counter() - started, 2),
@@ -63,7 +66,11 @@ def make_handler(cfg: Config, scan_state: ScanState):
 
         # -- plumbing ---------------------------------------------------------------
         def _host_ok(self) -> bool:
-            host = (self.headers.get("Host") or "").rsplit(":", 1)[0].lower()
+            host = (self.headers.get("Host") or "").strip().lower()
+            if host.startswith("["):  # [::1]:8711
+                host = host[: host.find("]") + 1]
+            else:
+                host = host.rsplit(":", 1)[0]
             return host in LOCAL_HOSTS
 
         def _send(self, status: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
@@ -120,8 +127,9 @@ def make_handler(cfg: Config, scan_state: ScanState):
 
         def _static(self, path: str) -> None:
             rel = unquote(path).lstrip("/") or "index.html"
-            target = (WEB_ROOT / rel).resolve()
-            if not str(target).startswith(str(WEB_ROOT.resolve())) or not target.is_file():
+            root = WEB_ROOT.resolve()
+            target = (root / rel).resolve()
+            if not target.is_relative_to(root) or not target.is_file():
                 target = WEB_ROOT / "index.html"  # hash routing: unknown paths get the app shell
                 if not target.is_file():
                     return self._send(404, b"UI files are missing from this install.", "text/plain; charset=utf-8")

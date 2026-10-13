@@ -377,3 +377,14 @@ export function niceStep(range, count) {
   const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
   return step * mag;
 }
+
+/** Translate a page's range ("7d", "30d", "90d", "all") into a Threads-view `since` value. */
+export function threadsSince(range) {
+  if (!range || range === "all") return "all";
+  if (range === "7d" || range === "30d" || range === "today") return range;
+  const m = /^(\d+)d$/.exec(range);
+  if (!m) return range;
+  const d = new Date();
+  d.setDate(d.getDate() - (Number(m[1]) - 1));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

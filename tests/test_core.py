@@ -279,3 +279,62 @@ class ServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    def test_cycle_members_still_get_rollups(self):
+        with TempIndex() as t:
+            db.upsert_node(t.conn, "cx:X", source="codex", kind="subagent", parent_hint="cx:Y")
+            db.upsert_node(t.conn, "cx:Y", source="codex", kind="subagent", parent_hint="cx:X")
+            db.put_usage(t.conn, "codex", "k1", "cx:X", ts="2026-10-10T00:00:00.000Z", model="gpt-6-luna", input=10)
+            db.put_usage(t.conn, "codex", "k2", "cx:Y", ts="2026-10-10T00:00:00.000Z", model="gpt-6-luna", input=5)
+            indexer.resolve(t.conn, t.cfg)
+            totals = {r["node_id"]: r["sub_input"] for r in t.conn.execute("SELECT node_id, sub_input FROM node_totals")}
+            self.assertEqual(set(totals), {"cx:X", "cx:Y"})
+            self.assertEqual(max(totals.values()), 15)
+
+    def test_wholly_unpriced_cost_is_null(self):
+        self.assertIsNone(queries.money(0, 0, 2)["cost"])
+        self.assertEqual(queries.money(1.0, 0, 2)["cost"], 1.0)
+        self.assertEqual(export.fmt_cost(queries.money(0, 0, 2)), "?")
+
+    def test_scan_lock_is_exclusive(self):
+        with TempIndex() as t:
+            with indexer.scan_lock(t.cfg):
+                with self.assertRaises(indexer.ScanBusy):
+                    with indexer.scan_lock(t.cfg, wait=False):
+                        pass
+
+    def test_static_files_cannot_escape_web_root(self):
+        from agent_tree import server
+        sibling = server.WEB_ROOT.parent / (server.WEB_ROOT.name + "_evil")
+        self.assertFalse((sibling / "x").resolve().is_relative_to(server.WEB_ROOT.resolve()))
+
+
+class T3StatusTests(unittest.TestCase):
+    def test_thread_status(self):
+        from agent_tree.sources.t3 import _thread_status
+        running = {"state": "running", "requested_at": "2026-10-10T00:00:00Z", "completed_at": None}
+        done = {"state": "completed", "requested_at": "2026-10-09T00:00:00Z", "completed_at": "2026-10-09T00:01:00Z"}
+        self.assertEqual(_thread_status({}, [done, running]), "active")
+        self.assertEqual(_thread_status({}, [done]), "settled")
+        self.assertEqual(_thread_status({}, []), "settled")
+        self.assertEqual(_thread_status({"archived_at": "2026-10-10"}, [done]), "archived")
+
+
+class WrapperStatusTests(unittest.TestCase):
+    def test_running_unknown_failed(self):
+        import os, tempfile, time
+        from pathlib import Path
+        from agent_tree.sources.wrapper import _status
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            out, log = d / "t.md.out", d / "t.md.log"
+            self.assertEqual(_status({}, out, log), "unknown")
+            log.write_text("working\n")
+            self.assertEqual(_status({}, out, log), "running")
+            os.utime(log, (time.time() - 3600,) * 2)
+            self.assertEqual(_status({}, out, log), "failed")
+            out.write_text("done")
+            self.assertEqual(_status({}, out, log), "completed")
+            self.assertEqual(_status({"exit_code": 2}, out, log), "failed")

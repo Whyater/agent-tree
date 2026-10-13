@@ -29,12 +29,16 @@ def nodes_csv(nodes: list[dict], tree_id: str | None = None) -> str:
             n["agent_type"] or "", n["role"] or "", n["description"] or "", n["model"] or "", n["family"] or "",
             n["effort"] or "", n["status"] or "", n["started"] or "", n["ended"] or "", n["wall_ms"] if n["wall_ms"] is not None else "",
             st["input"], st["cached_input"], st["cache_write"], st["output"], st["reasoning"], st["total"],
-            f"{sm['cost']:.6f}", f"{sm['covered_cost']:.6f}",
-            n["subtree"]["tokens"]["total"], f"{n['subtree']['money']['cost']:.6f}",
+            _csv_cost(sm["cost"]), _csv_cost(sm["covered_cost"]),
+            n["subtree"]["tokens"]["total"], _csv_cost(n["subtree"]["money"]["cost"]),
             n["link_confidence"], ";".join(n.get("flags", [])), n["raw_file"] or "", n["raw_offset"] if n["raw_offset"] is not None else "",
             n["parser_version"] or "",
         ])
     return buf.getvalue()
+
+
+def _csv_cost(value) -> str:
+    return "" if value is None else f"{value:.6f}"
 
 
 def fmt_tokens(n: int) -> str:
@@ -49,7 +53,9 @@ def fmt_tokens(n: int) -> str:
 
 
 def fmt_cost(m: dict, covered: bool = False) -> str:
-    cost = m["cost"] + (m["covered_cost"] if covered else 0)
+    if m["cost"] is None and not (covered and m["covered_cost"]):
+        return "?"
+    cost = (m["cost"] or 0) + (m["covered_cost"] if covered else 0)
     if not m["cost_known"] and cost == 0:
         return "?"
     prefix = "≥" if not m["cost_known"] else ""
