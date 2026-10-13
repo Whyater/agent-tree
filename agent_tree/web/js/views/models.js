@@ -57,7 +57,7 @@ export function mount(ctx) {
           h("span", { class: famClass(f.family), style: { width: (f.tokens.total / totalTok) * 100 + "%" } })))))));
 
     wrap.append(h("section", { class: "card", "aria-labelledby": "md-h" },
-      h("div", { class: "card-head" }, h("h2", { id: "md-h" }, "Daily tokens by family"), h("div", { class: "meta" }, familyLegend(fams.map((f) => f.family)))),
+      h("div", { class: "card-head" }, h("h2", { id: "md-h" }, "Daily tokens by family, last 30 days"), h("div", { class: "meta" }, familyLegend(fams.map((f) => f.family)))),
       h("div", { class: "card-body" }, dailyStackedChart(d.daily || [], { height: 170 }))));
 
     const maxTok = Math.max(...models.map((m) => m.tokens.total), 1);

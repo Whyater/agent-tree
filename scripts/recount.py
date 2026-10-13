@@ -145,17 +145,26 @@ def codex(thread_id):
             stack.extend(children.get(t, []))
     totals = {}
     for t in tree:
-        last, last_ts = None, ""
-        for f in files_of[t]:
+        # Walk the thread's files in name order (copies with the same name count once). The
+        # counter is cumulative across continuation files; a drop below half the previous
+        # total is a restart, so the finished segment is banked and counting starts again.
+        keys = ("input_tokens", "cached_input_tokens", "output_tokens")
+        bank, last = dict.fromkeys(keys, 0), None
+        for f in sorted({f.name: f for f in files_of[t]}.values(), key=lambda f: f.name):
             cutoff = (first_meta(f) or {}).get("subagent_history_start_ordinal")
             for o in lines(f):
                 if cutoff is not None and isinstance(o.get("ordinal"), int) and o["ordinal"] < cutoff:
                     continue
                 p = o.get("payload") or {}
                 if o.get("type") == "event_msg" and p.get("type") == "token_count" and p.get("info"):
-                    if (o.get("timestamp") or "") >= last_ts and p["info"].get("total_token_usage"):
-                        last, last_ts = p["info"]["total_token_usage"], o.get("timestamp") or ""
-        totals[t] = last or {}  # the counter is cumulative across continuation files
+                    cur = p["info"].get("total_token_usage")
+                    if not cur:
+                        continue
+                    if last and int(cur.get("total_tokens") or 0) < int(last.get("total_tokens") or 0) * 0.5:
+                        for k in keys:
+                            bank[k] += int(last.get(k) or 0)
+                    last = cur
+        totals[t] = {k: bank[k] + int((last or {}).get(k) or 0) for k in keys}
     mine_total = sum(int(v.get("input_tokens") or 0) + int(v.get("output_tokens") or 0) for v in totals.values())
     mine_out = sum(int(v.get("output_tokens") or 0) for v in totals.values())
     mine_cached = sum(int(v.get("cached_input_tokens") or 0) for v in totals.values())

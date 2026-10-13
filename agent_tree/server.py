@@ -67,8 +67,12 @@ def make_handler(cfg: Config, scan_state: ScanState):
         # -- plumbing ---------------------------------------------------------------
         def _host_ok(self) -> bool:
             host = (self.headers.get("Host") or "").strip().lower()
-            if host.startswith("["):  # [::1]:8711
-                host = host[: host.find("]") + 1]
+            if host.startswith("["):  # [::1] or [::1]:8711
+                end = host.find("]")
+                rest = host[end + 1:]
+                if end < 0 or (rest and not rest[1:].isdigit()) or (rest and rest[0] != ":"):
+                    return False
+                host = host[: end + 1]
             else:
                 host = host.rsplit(":", 1)[0]
             return host in LOCAL_HOSTS
@@ -128,8 +132,12 @@ def make_handler(cfg: Config, scan_state: ScanState):
         def _static(self, path: str) -> None:
             rel = unquote(path).lstrip("/") or "index.html"
             root = WEB_ROOT.resolve()
-            target = (root / rel).resolve()
-            if not target.is_relative_to(root) or not target.is_file():
+            try:
+                target = (root / rel).resolve()
+                ok = target.is_relative_to(root) and target.is_file()
+            except (ValueError, OSError):  # e.g. a NUL byte in the path
+                ok = False
+            if not ok:
                 target = WEB_ROOT / "index.html"  # hash routing: unknown paths get the app shell
                 if not target.is_file():
                     return self._send(404, b"UI files are missing from this install.", "text/plain; charset=utf-8")
@@ -144,7 +152,7 @@ def make_handler(cfg: Config, scan_state: ScanState):
             conn = db.connect(cfg.db_path)
             try:
                 if path == "/api/meta":
-                    return self._json(queries.meta(conn, cfg, scan_state.running))
+                    return self._json(queries.meta(conn, cfg, scan_state.running or indexer.scan_in_progress(cfg)))
                 if path == "/api/summary":
                     return self._json(queries.summary(conn, cfg))
                 if path == "/api/threads":

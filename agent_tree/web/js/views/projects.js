@@ -46,7 +46,7 @@ export function mount(ctx) {
     }
     const days = (list[0].daily || []);
     const sparkLabel = days.length ? `${fmtDayShort(days[0].day)} to ${fmtDayShort(days[days.length - 1].day)}` : "";
-    const threadsLink = (p) => ctx.buildHash("/threads", { project: p.name, since: threadsSince(range) });
+    const threadsLink = (p) => ctx.buildHash("/threads", { project: p.path || p.name, since: threadsSince(range) });
     const rows = list.map((p) => h("tr", { "aria-selected": "false" },
       h("td", { class: "title-cell" },
         h("a", { href: threadsLink(p), style: { color: "var(--text)", fontWeight: 500 } }, p.name || "(no project)"),

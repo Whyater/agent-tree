@@ -1,6 +1,6 @@
 // Thread view: collapsible agent tree, row-aligned timeline, node detail panel.
 import {
-  h, s, clear, icon, fmtTokens, fmtInt, fmtAbs, fmtRel, fmtDur, fmtClock, costEl, costText, prettyModel, modelBadge,
+  h, s, clear, icon, fmtTokens, fmtInt, fmtAbs, fmtRel, fmtDur, fmtClock, fmtDate, costEl, costText, prettyModel, modelBadge,
   flagGlyph, sourceChain, store, parseTs, famClass, FAMILY_LABEL, FAMILY_ORDER, SOURCE_LABEL, copyButton, kbd,
 } from "../util.js";
 import { api, threadPath, exportPath } from "../api.js";
@@ -290,19 +290,35 @@ class ThreadView {
     if (!this.showTimeline) { clear(this.axis); clear(this.bg); return; }
     const w = this.axisW || 400;
     const span = this.T1 - this.T0;
-    const want = Math.max(3, Math.floor(w / 72));
+    const want = Math.max(3, Math.floor(w / (span > 86400000 ? 110 : 72)));
     const step = TICK_STEPS.find((st) => span / st <= want) || 86400000 * Math.ceil(span / want / 86400000);
     clear(this.axis);
     for (const el of [...this.bg.children]) el.remove();
     const withSec = step < 60000;
-    let first = Math.ceil(this.T0 / step) * step;
-    for (let t = first; t <= this.T1; t += step) {
+    const DAY = 86400000;
+    const multiDay = span > DAY;
+    // Label: dates for day-sized steps, date + time when the span crosses days, else time.
+    const label = (t) => step >= DAY ? fmtDate(t) : multiDay ? `${fmtDate(t)} ${fmtClock(t)}` : fmtClock(t, withSec);
+    let first;
+    if (step >= DAY) {
+      // Day ticks sit on local midnight, not UTC midnight.
+      const d = new Date(this.T0);
+      d.setHours(0, 0, 0, 0);
+      first = d.getTime() < this.T0 ? d.getTime() + DAY : d.getTime();
+    } else {
+      // Sub-day steps align to the local clock (handles zones with :30 offsets too).
+      const offset = new Date(this.T0).getTimezoneOffset() * 60000;
+      first = Math.ceil((this.T0 - offset) / step) * step + offset;
+    }
+    const stepAt = (t) => step >= DAY ? (() => { const d = new Date(t); d.setDate(d.getDate() + Math.round(step / DAY)); return d.getTime(); })() : t + step;
+    for (let t = first; t <= this.T1; t = stepAt(t)) {
       const p = this.pct(t);
       if (p > 97) break;
-      this.axis.append(h("span", { class: "tick", style: { left: p + "%" } }, fmtClock(t, withSec)));
+      this.axis.append(h("span", { class: "tick", style: { left: p + "%" } }, label(t)));
       this.bg.append(h("span", { class: "vline", style: { left: p + "%" } }));
     }
-    if (this.pct(first) > 8) this.axis.append(h("span", { class: "tick first", style: { left: "4px" } }, fmtClock(this.T0, withSec)));
+    // Start label only when there is room before the first tick.
+    if ((this.pct(first) * w) / 100 > (multiDay ? 110 : 64)) this.axis.append(h("span", { class: "tick first", style: { left: "4px" } }, label(this.T0)));
 
     // concurrency strip + idle gaps (subagent activity only; top-level sessions span everything)
     const iv = [];

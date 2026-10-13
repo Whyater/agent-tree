@@ -33,7 +33,8 @@ command -v tar >/dev/null 2>&1 || die "tar is required"
 
 mkdir -p "$PREFIX" "$BIN_DIR"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+STAGE="$PREFIX/app.new"
+trap 'rm -rf "$TMP" "$STAGE"' EXIT
 
 # 1. Source: use the local checkout when run from one, otherwise download.
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo "")"
@@ -48,7 +49,6 @@ else
   [ -n "$SRC" ] || die "unexpected archive layout"
 fi
 # Stage the new copy next to the old one; it only replaces the live one after it runs.
-STAGE="$PREFIX/app.new"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 cp -R "$SRC/agent_tree" "$STAGE/"

@@ -125,16 +125,16 @@ function flagsCard(sum, fl) {
   const rules = fl && fl.rules ? fl.rules.filter((r) => r.count > 0).sort((a, b) => b.count - a.count) : [];
   return h("section", { class: "card", "aria-labelledby": "flags-h" },
     h("div", { class: "card-head" }, h("h2", { id: "flags-h" }, "Flags"),
-      h("div", { class: "meta" }, h("a", { href: "#/flags" }, "View all"))),
+      h("div", { class: "meta" }, h("a", { href: "#/flags?since=30d" }, "View all"))),
     h("div", { class: "card-body stack" },
       h("div", { class: "headline", style: { display: "flex", alignItems: "baseline", gap: "16px" } },
-        h("a", { href: "#/flags", class: "big", style: { color: "var(--text)" }, "aria-label": `${sum.flag_count || 0} flags, view all` }, String(sum.flag_count || 0)),
-        h("a", { href: "#/flags?severity=alert", "aria-label": `${counts.alert || 0} alerts` }, flagGlyph("alert", (counts.alert || 0) + " alert")),
-        h("a", { href: "#/flags?severity=warn", "aria-label": `${counts.warn || 0} warnings` }, flagGlyph("warn", (counts.warn || 0) + " warn"))),
+        h("a", { href: "#/flags?since=30d", class: "big", style: { color: "var(--text)" }, "aria-label": `${sum.flag_count || 0} flags, view all` }, String(sum.flag_count || 0)),
+        h("a", { href: "#/flags?since=30d&severity=alert", "aria-label": `${counts.alert || 0} alerts` }, flagGlyph("alert", (counts.alert || 0) + " alert")),
+        h("a", { href: "#/flags?since=30d&severity=warn", "aria-label": `${counts.warn || 0} warnings` }, flagGlyph("warn", (counts.warn || 0) + " warn"))),
       rules.length
         ? h("table", { class: "mini-table" },
           h("tbody", null, rules.slice(0, 6).map((r) => h("tr", null,
-            h("td", null, h("a", { href: "#/flags?rule=" + encodeURIComponent(r.id), style: { color: "var(--text)" } }, r.label),
+            h("td", null, h("a", { href: "#/flags?since=30d&rule=" + encodeURIComponent(r.id), style: { color: "var(--text)" } }, r.label),
               r.heuristic ? [" ", h("span", { class: "chip dashed", title: "Guessed from short task descriptions" }, "heuristic")] : null),
             h("td", { class: "num" }, flagGlyph(r.severity, r.count))))))
         : h("div", { class: "muted" }, sum.flag_count ? "" : "No rules fired in the last 30 days."),

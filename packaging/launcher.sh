@@ -12,7 +12,8 @@ export PYTHONDONTWRITEBYTECODE=1
 mkdir -p "$STATE"
 
 port() { "$PY" -c 'from agent_tree.config import load_config; print(load_config().port)' 2>/dev/null || echo 8711; }
-up() { curl -fsS -m 1 "http://127.0.0.1:$1/api/meta" >/dev/null 2>&1; }
+# Only treat the port as ours if it answers like Agent Tree.
+up() { curl -fsS -m 1 "http://127.0.0.1:$1/api/meta" 2>/dev/null | grep -q '"version"'; }
 
 case "${1:-start}" in
   start)

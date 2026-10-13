@@ -277,9 +277,6 @@ class ServerTests(unittest.TestCase):
                 httpd.server_close()
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class ReviewRegressionTests(unittest.TestCase):
     def test_cycle_members_still_get_rollups(self):
@@ -338,3 +335,48 @@ class WrapperStatusTests(unittest.TestCase):
             out.write_text("done")
             self.assertEqual(_status({}, out, log), "completed")
             self.assertEqual(_status({"exit_code": 2}, out, log), "failed")
+
+
+class ReReviewRegressionTests(unittest.TestCase):
+    def test_project_filter_is_exact(self):
+        with TempIndex() as t:
+            for i, path in enumerate(("/w/c", "/w/ca", "/w/abc")):
+                db.upsert_node(t.conn, f"cc:s{i}", session_id=f"cc:s{i}", source="claude-code", kind="root",
+                               project_path=path, started=f"2026-10-10T00:00:0{i}.000Z")
+            indexer.resolve(t.conn, t.cfg)
+            self.assertEqual([x["id"] for x in queries.list_threads(t.conn, t.cfg, project="/w/c")["threads"]], ["cc:s0"])
+            self.assertEqual(queries.list_threads(t.conn, t.cfg, project="c")["total"], 1)
+
+    def test_flag_rule_counts_follow_the_date_filter(self):
+        with TempIndex() as t:
+            t.conn.executemany("INSERT INTO flags(rule, severity, tree_id, node_id, message, heuristic, ts) VALUES(?,?,?,?,?,?,?)",
+                               [("depth", "warn", "x", "x", "m", 0, "2020-01-01T00:00:00.000Z"),
+                                ("depth", "warn", "x", "y", "m", 0, "2099-01-01T00:00:00.000Z")])
+            res = queries.flags(t.conn, t.cfg, since="7d")
+            self.assertEqual(len(res["flags"]), 1)
+            self.assertEqual(next(r["count"] for r in res["rules"] if r["id"] == "depth"), 1)
+
+    def test_host_header_rules(self):
+        from agent_tree.server import ScanState, make_handler
+        with TempIndex() as t:
+            httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(t.cfg, ScanState()))
+            threading.Thread(target=httpd.serve_forever, daemon=True).start()
+            try:
+                base = f"http://127.0.0.1:{httpd.server_address[1]}"
+                for host, code in (("[::1]", 200), ("[::1]:8711", 200), ("[::1]evil", 403), ("localhost.evil.com", 403)):
+                    req = urllib.request.Request(base + "/api/meta", headers={"Host": host})
+                    try:
+                        with urllib.request.urlopen(req) as r:
+                            got = r.status
+                    except urllib.error.HTTPError as e:
+                        got = e.code
+                    self.assertEqual(got, code, host)
+                with urllib.request.urlopen(base + "/%00") as r:  # NUL byte: app shell, not a dropped connection
+                    self.assertEqual(r.status, 200)
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
+
+if __name__ == "__main__":
+    unittest.main()

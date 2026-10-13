@@ -165,6 +165,10 @@ export function fmtClock(t, withSeconds = false) {
   return dtf({ hour: "2-digit", minute: "2-digit", ...(withSeconds ? { second: "2-digit" } : {}) }).format(t);
 }
 
+export function fmtDate(t) {
+  return dtf({ month: "short", day: "numeric" }).format(t);
+}
+
 export function fmtDayShort(day) {
   // day = "2026-10-12" (already a local calendar day)
   const [y, m, d] = day.split("-").map(Number);

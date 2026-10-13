@@ -45,6 +45,15 @@ def scan_lock(cfg: Config, wait: bool = True):
             fcntl.flock(fh, fcntl.LOCK_UN)
 
 
+def scan_in_progress(cfg: Config) -> bool:
+    """True when any process (CLI, server, app) holds the scan lock."""
+    try:
+        with scan_lock(cfg, wait=False):
+            return False
+    except ScanBusy:
+        return True
+
+
 def scan(conn: sqlite3.Connection, cfg: Config, full: bool = False, only: list[str] | None = None,
          wait: bool = True) -> list[SourceStats]:
     with scan_lock(cfg, wait=wait):
@@ -235,8 +244,6 @@ def resolve(conn: sqlite3.Connection, cfg: Config, prices: PriceBook | None = No
     rollup(conn, cfg, nodes, parent, children, hidden)
     from .flags import evaluate  # late import: flags reads the resolved tables
     evaluate(conn, cfg)
-    db.set_meta(conn, "price_fingerprint", prices.fingerprint)
-    db.set_meta(conn, "covered_fingerprint", json.dumps(cfg.covered_by_plan, sort_keys=True))
 
 
 def _hook_states(conn) -> dict:

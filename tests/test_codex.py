@@ -164,9 +164,6 @@ class CodexParserTests(unittest.TestCase):
         self.assertTrue(sum("token_usage_record" in note for note in scan(self.conn, self.cfg).notes) == 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class CodexContinuationTests(unittest.TestCase):
     """Long threads continue in rollout-...-<id>_<suffix>.jsonl with the counter carrying on."""
@@ -238,3 +235,51 @@ class CodexContinuationTests(unittest.TestCase):
         total = self.conn.execute("SELECT SUM(input+cached_input), SUM(output) FROM usage WHERE node_id=?", (f"cx:{self.TID}",)).fetchone()
         self.assertEqual(tuple(total), (1000, 95))
         self.assertEqual(len(self._rows()), 3)
+
+    def _scan_total(self, full=False):
+        from agent_tree.sources.codex import scan
+        scan(self.conn, self.cfg, full=full)
+        row = self.conn.execute("SELECT SUM(input+cached_input), SUM(output), COUNT(*) FROM usage WHERE node_id=?",
+                                (f"cx:{self.TID}",)).fetchone()
+        return row[0], row[1], row[2]
+
+    def test_two_continuations_with_a_counter_dip(self):
+        self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a", [(100, 50, 10), (400, 200, 40)])
+        # The counter dips by a few tokens at the start of the first continuation.
+        self._file("12", f"rollout-2026-09-12T00-00-00-{self.TID}_s1.jsonl", 500, "gpt-a", [(398, 200, 40), (700, 300, 70)])
+        self._file("13", f"rollout-2026-09-13T00-00-00-{self.TID}_s2.jsonl", 900, "gpt-b", [(698, 300, 70), (1000, 400, 100)])
+        self.assertEqual(self._scan_total()[:2], (1000, 100))
+        self.assertEqual(self._scan_total(full=True)[:2], (1000, 100))
+
+    def test_files_sharing_byte_offsets_do_not_collide(self):
+        # Same shape, so token_count lines sit at the same byte offsets in both files.
+        self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a", [(100, 50, 10), (300, 100, 30)])
+        self._file("11", f"rollout-2026-09-11T09-00-00-{self.TID}_s1.jsonl", 0, "gpt-a", [(600, 200, 60), (900, 300, 90)])
+        total, out, rows = self._scan_total()
+        self.assertEqual((total, out, rows), (900, 90, 4))
+
+    def test_split_across_sessions_and_archive(self):
+        orig = self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a", [(300, 100, 30)])
+        cont = self._file("12", f"rollout-2026-09-12T00-00-00-{self.TID}_s1.jsonl", 500, "gpt-a", [(900, 300, 90)])
+        archived = self.codex / "archived_sessions" / cont.name
+        archived.parent.mkdir(parents=True)
+        cont.rename(archived)
+        self.assertEqual(self._scan_total(full=True)[:2], (900, 90))
+        # A copy of the continuation in both places is still counted once.
+        archived_copy = self.codex / "sessions" / "2026" / "09" / "12" / archived.name
+        archived_copy.write_bytes(archived.read_bytes())
+        self.assertEqual(self._scan_total(full=True)[:2], (900, 90))
+        # And the original archived with the continuation live.
+        archived_copy.unlink()
+        orig.rename(self.codex / "archived_sessions" / orig.name)
+        archived.rename(archived_copy)
+        self.assertEqual(self._scan_total(full=True)[:2], (900, 90))
+
+    def test_reset_inside_a_continuation_starts_a_new_baseline(self):
+        self._file("11", f"rollout-2026-09-11T00-00-00-{self.TID}.jsonl", 0, "gpt-a", [(1000, 500, 100)])
+        self._file("12", f"rollout-2026-09-12T00-00-00-{self.TID}_s1.jsonl", 500, "gpt-a", [(30, 10, 3), (60, 20, 6)])
+        self.assertEqual(self._scan_total()[:2], (1060, 106))
+
+
+if __name__ == "__main__":
+    unittest.main()

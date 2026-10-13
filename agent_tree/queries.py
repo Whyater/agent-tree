@@ -316,7 +316,7 @@ def list_threads(conn, cfg, project=None, source=None, model=None, since=None, u
     for root in roots:
         st = stats.get(root["id"], {})
         summ = _thread_summary(root, st, totals.get(root["id"]), titles, flag_counts.get(root["id"], 0), child_title.get(root["id"]))
-        if project and project not in (summ["project_path"] or "") and project != summ["project_name"]:
+        if project and project != summ["project_path"] and project != summ["project_name"]:
             continue
         if source and source not in summ["sources"]:
             continue
@@ -511,7 +511,10 @@ def flags(conn, cfg, since=None, rule=None, severity=None) -> dict:
             titles[d["tree_id"]] = _thread_title(conn, d["tree_id"])
         d["thread_title"] = titles[d["tree_id"]]
         out.append(d)
-    counts = dict(conn.execute("SELECT rule, COUNT(*) FROM flags GROUP BY rule").fetchall())
+    # Rule counts follow the same date/severity filter as the list (not the rule filter).
+    cwhere = [w for w in where if w != "f.rule = ?"]
+    cparams = [p for w, p in zip([w for w in where if "?" in w], params) if w != "f.rule = ?"]
+    counts = dict(conn.execute(f"SELECT f.rule, COUNT(*) FROM flags f WHERE {' AND '.join(cwhere)} GROUP BY f.rule", cparams).fetchall())
     rules_out = []
     for rid, label in RULE_LABELS.items():
         rc = rules_cfg.get(rid, {}) if isinstance(rules_cfg.get(rid), dict) else {}

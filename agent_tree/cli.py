@@ -63,6 +63,7 @@ def open_db(cfg: Config) -> sqlite3.Connection:
 
 
 def _do_scan(conn, cfg, full: bool, quiet: bool = False) -> None:
+    first = db.get_meta(conn, "last_scan") is None
     t0 = time.perf_counter()
     stats = indexer.scan(conn, cfg, full=full)
     secs = time.perf_counter() - t0
@@ -80,7 +81,7 @@ def _do_scan(conn, cfg, full: bool, quiet: bool = False) -> None:
     n = conn.execute("SELECT COUNT(*) FROM nodes WHERE tree_id IS NOT NULL").fetchone()[0]
     t = conn.execute("SELECT COUNT(*) FROM nodes WHERE tree_id = id").fetchone()[0]
     f = conn.execute("SELECT COUNT(*) FROM flags").fetchone()[0]
-    mode = "Full" if full else "Incremental"
+    mode = "Full" if full or first else "Incremental"
     print(f"\n{bold(f'{t:,}')} threads, {n:,} agents, {f} flags. {mode} scan took {secs:.1f}s.")
 
 

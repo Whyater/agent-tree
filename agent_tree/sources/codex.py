@@ -21,7 +21,7 @@ from .base import (
     save_cursor,
 )
 
-PARSER_VERSION = "cx-4"
+PARSER_VERSION = "cx-5"
 SOURCE = "codex"
 _TOTAL_FIELDS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
 
@@ -228,6 +228,14 @@ def _is_continuation(path: Path, thread_id: str) -> bool:
     return f"{thread_id}_" in path.name
 
 
+def _key_prefix(path: Path, thread_id: str) -> str:
+    """Usage keys are unique per file of a thread (continuations get their suffix),
+    while the live and archived copies of one file share keys and so dedupe."""
+    if _is_continuation(path, thread_id):
+        return f"cx:{thread_id}:{path.stem.split(f'{thread_id}_', 1)[1]}"
+    return f"cx:{thread_id}"
+
+
 def _has_other_larger(seen: dict[str, list[tuple[str, int | None]]], thread_id: str, path: Path, total: int | None) -> bool:
     return total is not None and any(other != str(path) and value is not None and value >= total for other, value in seen.get(thread_id, []))
 
@@ -255,7 +263,10 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
         conn.commit()
         return stats
     titles = _title_index(root / "session_index.jsonl", stats, cfg)
-    paths = sorted({*safe_files(root / "sessions", "**/*.jsonl"), *safe_files(root / "archived_sessions", "**/*.jsonl")})
+    # Order by file name (it starts with the timestamp), so a thread's files are read in order
+    # even when some were moved to archived_sessions/.
+    paths = sorted({*safe_files(root / "sessions", "**/*.jsonl"), *safe_files(root / "archived_sessions", "**/*.jsonl")},
+                   key=lambda p: (p.name, str(p)))
     stats.files_seen = len(paths)
     # A full rebuild invalidates saved cursors and cumulative totals. Ignore
     # stale state when arbitrating duplicate rollout files in that run.
@@ -287,11 +298,13 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
                                           "fallback_cutoff_ts": meta.get("timestamp"), "fallback_active": True, "started": meta.get("timestamp")})
                             first_meta_seen = True
                             if _is_continuation(path, str(meta["id"])):
-                                # Seed the counter from the largest earlier file of this thread so this
+                                # Seed the counter from the previous file of this thread so this
                                 # file only stores its own increases (keeps per-day and per-model splits).
-                                earlier = [t for p_, t in last_totals.get(str(meta["id"]), []) if p_ < str(path)]
+                                # File names sort chronologically across sessions/ and archived_sessions/.
+                                earlier = sorted(((Path(p_).name, t) for p_, t in last_totals.get(str(meta["id"]), [])
+                                                  if Path(p_).name < path.name), key=lambda item: item[0])
                                 if earlier:
-                                    state["last_total"] = max(earlier, key=lambda t: t.get("total_tokens", 0))
+                                    state["last_total"] = earlier[-1][1]  # the most recent earlier file
                                 state["continuation"] = True
                     continue
                 if not _eligible(obj, state) or not isinstance(payload, dict):
@@ -336,7 +349,7 @@ def scan(conn: sqlite3.Connection, cfg: Any, full: bool = False) -> SourceStats:
                             state["last_total"], state["last_token_offset"], state["last_token_ts"] = current, line_offset, _ts(obj.get("timestamp"))
                             state["seen_token_count"] = True
                             if any(delta.values()):
-                                pending.append((f"cx:{state['thread_id']}:{line_offset}", state["last_token_ts"], state.get("latest_model"), delta))
+                                pending.append((f"{_key_prefix(path, state['thread_id'])}:{line_offset}", state["last_token_ts"], state.get("latest_model"), delta))
                 elif obj_type == "token_usage_record":
                     token_record_count += 1
                     if payload.get("thread_id") == state.get("thread_id"):
