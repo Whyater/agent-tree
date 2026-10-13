@@ -1,4 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#4f46e5"/>
-  <text x="32" y="32" dy="0.35em" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="26" font-weight="600" fill="#ffffff">AT</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#16181d"/>
+  <rect x="64.5" y="64.5" width="895" height="895" rx="199.5" fill="none" stroke="#2c3038" stroke-width="3"/>
+  <g fill="none" stroke="#5b6270" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 300 V420 H318 V560"/>
+    <path d="M512 420 H706 V560"/>
+    <path d="M318 640 V720 H246 V770"/>
+    <path d="M318 720 H390 V770"/>
+    <path d="M706 640 V770"/>
+  </g>
+  <circle cx="512" cy="262" r="62" fill="#e8895a"/>
+  <circle cx="318" cy="600" r="50" fill="#e8895a"/>
+  <circle cx="706" cy="600" r="50" fill="#4f9fe0"/>
+  <circle cx="246" cy="806" r="38" fill="#4f9fe0"/>
+  <circle cx="390" cy="806" r="38" fill="#4f9fe0"/>
+  <circle cx="706" cy="806" r="38" fill="#e8895a"/>
 </svg>
