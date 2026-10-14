@@ -75,9 +75,7 @@ struct TreeCard: View {
                         .foregroundStyle(Theme.secondary)
                 }
                 if live {
-                    Text("Live")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.anthropic)
+                    Chip(text: "Live", color: Theme.anthropic)
                 }
             }
         } content: {
@@ -98,14 +96,15 @@ struct TreeCard: View {
                             .padding(.leading, TreeCard.indent + 2)
                         }
                     }
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(hover ? 0.045 : 0)))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(hover ? 0.05 : 0)))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, -6)
-                .onHover { hover = $0 }
+                .buttonStyle(PressableStyle(pressedScale: 0.99))
+                // Inset so the hover wash sits 4 pt inside the card edge.
+                .padding(.horizontal, -8)
+                .onHover { h in withAnimation(Style.quick) { hover = h } }
                 .help("Open this tree in the full view")
                 .accessibilityLabel("Agent tree for \(d.thread.displayTitle), \(summaryLine(d)). Opens the full view.")
             } else {
@@ -155,14 +154,7 @@ struct TreeCard: View {
                 .truncationMode(.tail)
             Spacer(minLength: 6)
             if n.model != nil {
-                Text(Fmt.modelName(n.model))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(color)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(Capsule().fill(color.opacity(0.15)))
-                    .lineLimit(1)
-                    .fixedSize()
+                Chip(text: Fmt.modelName(n.model), color: color)
             }
             Text(tokens > 0 ? Fmt.tokens(tokens) : "–")
                 .font(.system(size: 10).monospacedDigit())
@@ -188,7 +180,7 @@ struct TreeCard: View {
             .frame(width: 9, height: 9)
             .help("Running")
         case "failed":
-            Circle().fill(Color(red: 0.95, green: 0.42, blue: 0.40)).frame(width: 5.5, height: 5.5).frame(width: 9).help("Failed")
+            Circle().fill(Style.panelRed).frame(width: 5.5, height: 5.5).frame(width: 9).help("Failed")
         default:
             Circle().strokeBorder(Theme.tertiary, lineWidth: 1.2).frame(width: 6, height: 6).frame(width: 9).help("Done")
         }
@@ -201,12 +193,14 @@ struct Connector: View {
     let guides: [Bool]
     let isLast: Bool
     let indent: CGFloat
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        Canvas { ctx, size in
+        let lineOpacity = contrast == .increased ? 0.4 : 0.18
+        return Canvas { ctx, size in
             guard depth > 0 else { return }
             let mid = size.height / 2
-            let color = GraphicsContext.Shading.color(Color.white.opacity(0.18))
+            let color = GraphicsContext.Shading.color(Color.white.opacity(lineOpacity))
             var p = Path()
             for (i, g) in guides.enumerated() where g {
                 let x = CGFloat(i) * indent + indent / 2

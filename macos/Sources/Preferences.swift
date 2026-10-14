@@ -33,7 +33,9 @@ final class Preferences: ObservableObject {
     static let shared = Preferences()
     private let d = UserDefaults.standard
 
-    @Published var mode: AppMode { didSet { d.set(mode.rawValue, forKey: "mode") } }
+    @Published var mode: AppMode { didSet { if !choosingAutomatically { d.set(mode.rawValue, forKey: "mode") } } }
+    /// True while the app picks the mode itself, so the pick is not saved as the user's choice.
+    private var choosingAutomatically = false
     @Published var showPercentInMenuBar: Bool { didSet { d.set(showPercentInMenuBar, forKey: "showPercentInMenuBar") } }
     @Published var showMenuBarIcon: Bool { didSet { d.set(showMenuBarIcon, forKey: "showMenuBarIcon") } }
     @Published var notchPanelInDesktop: Bool { didSet { d.set(notchPanelInDesktop, forKey: "notchPanelInDesktop") } }
@@ -69,6 +71,18 @@ final class Preferences: ObservableObject {
         }
     }
     private static var cardCache: [String: Bool] = [:]
+
+    /// Until the user picks a mode, follow Vorssaint: inside it when it has the card, the
+    /// menu bar panel otherwise. Called again when Vorssaint launches, because a check made
+    /// while Vorssaint was being reinstalled finds no card, and the two panels would overlap.
+    func followVorssaint() {
+        guard d.string(forKey: "mode") == nil else { return }
+        let automatic: AppMode = Preferences.vorssaintHasCard ? .insideVorssaint : .compact
+        guard automatic != mode else { return }
+        choosingAutomatically = true
+        mode = automatic
+        choosingAutomatically = false
+    }
 
     private init() {
         if let raw = d.string(forKey: "mode"), let m = AppMode(rawValue: raw) {

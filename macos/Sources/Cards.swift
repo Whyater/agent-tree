@@ -9,28 +9,36 @@ struct Card<Content: View, Accessory: View>: View {
     var iconColor: Color = Theme.secondary
     @ViewBuilder var accessory: () -> Accessory
     @ViewBuilder var content: () -> Content
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 5) {
+        VStack(alignment: .leading, spacing: 9) {
+            // Quiet header: small uppercase label, the icon carries the colour.
+            HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 9.5, weight: .semibold))
                     .foregroundStyle(iconColor)
                     .frame(width: 12)
-                Text(title)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(Theme.cardTitle)
+                Text(title.uppercased())
+                    .font(.system(size: 10, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(Theme.secondary)
+                    .lineLimit(1)
                 Spacer(minLength: 4)
                 accessory()
             }
+            .frame(minHeight: 16)
             .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             content()
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardFill))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.cardStroke, lineWidth: 0.5))
+        .background(RoundedRectangle(cornerRadius: Style.Radius.panelCard, style: .continuous).fill(Style.panelCardFill))
+        .overlay(RoundedRectangle(cornerRadius: Style.Radius.panelCard, style: .continuous)
+            .strokeBorder(Style.panelCardStroke(contrast), lineWidth: Style.hairline))
     }
 }
 
@@ -50,17 +58,17 @@ struct Chip: View {
     var body: some View {
         Text(text)
             .font(.system(size: 9.5, weight: .semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1.5)
-            .background(Capsule().fill(color.opacity(0.16)))
+            .foregroundStyle(color.opacity(0.9))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.14)))
             .lineLimit(1)
             .fixedSize()
     }
 }
 
-/// Thin rounded progress bar with an optional pace tick (where usage would be if it
-/// were spread evenly over the window).
+/// Thin capsule meter with an optional pace tick (where usage would be if it were spread
+/// evenly over the window). The fill turns yellow from 60% and red above 85%.
 struct UsageBar: View {
     let fraction: Double
     let color: Color
@@ -70,19 +78,19 @@ struct UsageBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.track)
+                Capsule().fill(Style.panelTrack)
                 Capsule()
-                    .fill(color)
-                    .frame(width: max(fraction > 0 ? 5 : 0, geo.size.width * min(max(fraction, 0), 1)))
+                    .fill(Style.meterColor(fraction: fraction, base: color))
+                    .frame(width: max(fraction > 0 ? Style.meterHeight : 0, geo.size.width * min(max(fraction, 0), 1)))
                 if let p = pace, p > 0.02, p < 0.98 {
-                    RoundedRectangle(cornerRadius: 0.75)
-                        .fill(Color.white.opacity(0.85))
-                        .frame(width: 1.5, height: 8)
+                    Capsule()
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: 1.5, height: Style.meterHeight + 4)
                         .offset(x: geo.size.width * p - 0.75)
                 }
             }
         }
-        .frame(height: 4)
+        .frame(height: Style.meterHeight)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: fraction)
     }
 }
@@ -93,15 +101,15 @@ struct SegmentBar: View {
     var body: some View {
         GeometryReader { geo in
             let total = segments.map { $0.0 }.reduce(0, +)
-            let gaps = CGFloat(max(segments.count - 1, 0)) * 3
-            HStack(spacing: 3) {
+            let gaps = CGFloat(max(segments.count - 1, 0)) * 2
+            HStack(spacing: 2) {
                 if total <= 0 {
-                    Capsule().fill(Theme.track)
+                    Capsule().fill(Style.panelTrack)
                 } else {
                     ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
                         Capsule()
                             .fill(seg.1)
-                            .frame(width: max(3, (geo.size.width - gaps) * seg.0 / total))
+                            .frame(width: max(4, (geo.size.width - gaps) * seg.0 / total))
                     }
                 }
             }
@@ -136,7 +144,7 @@ struct LimitsCard: View {
             }
         } content: {
             if let d = data, d.available, let windows = d.windows, !windows.isEmpty {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 9) {
                     ForEach(windows.prefix(2)) { w in
                         LimitRow(window: w, color: color)
                     }
@@ -150,10 +158,10 @@ struct LimitsCard: View {
                         if provider == "claude" {
                             Button(action: openSettings) {
                                 Text("Connect Claude Code in Settings")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Theme.accent)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Color.accentColor)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressableStyle())
                             .help(data?.reason ?? "Agent Tree can read Claude limits once Claude Code is connected.")
                         } else {
                             Text(data?.reason ?? "No limit data found yet.")
@@ -181,7 +189,7 @@ struct LimitRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 5) {
                 Text(window.label ?? window.id)
                     .font(.system(size: 10.5, weight: .semibold))
@@ -198,7 +206,7 @@ struct LimitRow: View {
                 Spacer(minLength: 4)
                 Text(Fmt.percent(window.usedPercent))
                     .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
-                    .foregroundStyle((window.usedPercent ?? 0) >= 100 ? Theme.warn : Theme.primary)
+                    .foregroundStyle((window.usedPercent ?? 0) > 85 ? Style.panelRed : Theme.primary)
             }
             UsageBar(fraction: (window.usedPercent ?? 0) / 100, color: color, pace: pace)
         }
@@ -304,7 +312,7 @@ struct NowCard: View {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(running.prefix(2)) { r in
                             Button { open(r.threadId) } label: { row(r, now: ctx.date) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(PressableStyle(pressedScale: 0.98))
                         }
                         if running.count > 2 {
                             Text("+\(running.count - 2) more")
@@ -401,7 +409,7 @@ struct TrendCard: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         if total(d) == 0 {
-                            RoundedRectangle(cornerRadius: 1).fill(Theme.track).frame(height: 2)
+                            RoundedRectangle(cornerRadius: 1).fill(Style.panelTrack).frame(height: 2)
                         } else {
                             Rectangle().fill(Theme.other).frame(height: h * rest / Double(maxTotal))
                             Rectangle().fill(Theme.openai).frame(height: h * o / Double(maxTotal))
@@ -447,8 +455,9 @@ struct RecentCard: View {
                 }
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(Theme.secondary)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             .accessibilityLabel("Open all threads")
         } content: {
             if threads.isEmpty {
@@ -456,12 +465,14 @@ struct RecentCard: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.tertiary)
             } else {
-                VStack(spacing: 1) {
+                VStack(spacing: 0) {
                     ForEach(threads) { t in
                         ThreadRow(thread: t) { open(t.id) }
                     }
                 }
-                .padding(.horizontal, -6)
+                // Rows bring their own inset, so the hover wash sits 4 pt inside the card edge.
+                .padding(.horizontal, -8)
+                .padding(.bottom, -3)
             }
         }
     }
@@ -484,12 +495,13 @@ struct ThreadRow: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: 8) {
-                HStack(spacing: 2) {
+                // One small dot per model family (at most two), quieter than a bar.
+                VStack(spacing: 3) {
                     ForEach((thread.families ?? []).prefix(2), id: \.self) { f in
-                        Capsule().fill(Theme.family(f)).frame(width: 3, height: 22)
+                        Circle().fill(Theme.family(f)).frame(width: 5, height: 5)
                     }
                 }
-                .frame(width: 8, alignment: .leading)
+                .frame(width: 8)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(thread.displayTitle)
                         .font(.system(size: 11, weight: .medium))
@@ -514,13 +526,13 @@ struct ThreadRow: View {
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Theme.primary)
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.white.opacity(hover ? 0.06 : 0)))
+            .background(RoundedRectangle(cornerRadius: Style.Radius.tile, style: .continuous).fill(hover ? Style.panelHover : .clear))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .buttonStyle(PressableStyle(pressedScale: 0.985))
+        .onHover { h in withAnimation(Style.quick) { hover = h } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(thread.displayTitle), \(subtitle), \(Fmt.money(thread.money))")
         .accessibilityHint("Opens the thread in the full view")
@@ -542,13 +554,13 @@ struct PeriodButton: View {
             }
             .font(.system(size: 10.5, weight: .medium))
             .foregroundStyle(hover ? Theme.primary : Theme.secondary)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(hover ? 0.08 : 0)))
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(hover ? Style.panelHover : .clear))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .buttonStyle(PressableStyle())
+        .onHover { h in withAnimation(Style.quick) { hover = h } }
         .accessibilityLabel("Spending period, \(selection.label)")
         .accessibilityHint("Choose today, 7 days, or 30 days")
     }

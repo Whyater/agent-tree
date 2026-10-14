@@ -43,6 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .sink { [weak self] _ in DispatchQueue.main.async { self?.applyMode(initial: false, modeChanged: false) } }
                 .store(in: &cancellables)
         }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard app?.bundleIdentifier?.hasPrefix("com.vorssaint.") == true else { return }
+            Task { @MainActor in self?.prefs.followVorssaint() }
+        }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.notch.screensChanged() }
         }
@@ -162,12 +167,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let u = self?.backend.webURL { NSWorkspace.shared.open(u) }
             })
             let host = NSHostingController(rootView: view)
+            // Only the minimum comes from SwiftUI, so the window can be resized freely.
+            host.sizingOptions = [.minSize]
             let w = NSWindow(contentViewController: host)
             w.title = "Agent Tree Settings"
-            w.styleMask = [.titled, .closable]
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden
+            w.tabbingMode = .disallowed
             w.isReleasedWhenClosed = false
+            w.setContentSize(NSSize(width: 680, height: 720))
             w.center()
-            w.setFrameAutosaveName("AgentTreeSettings")
+            // New name: frames saved by the old fixed 480 pt window would be too narrow.
+            w.setFrameAutosaveName("AgentTreeSettingsWindow")
             settingsWindow = w
         }
         settingsWindow?.makeKeyAndOrderFront(nil)
@@ -192,6 +204,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let quitItem = NSMenuItem(title: "Quit Agent Tree", action: #selector(quitMenu(_:)), keyEquivalent: "q")
         quitItem.target = self
         m.addItem(quitItem)
+        StatusItemController.decorate(m, symbols: ["Open Full View": "macwindow", "Scan Now": "arrow.clockwise",
+                                                   "Settings…": "gearshape", "Quit Agent Tree": "power"])
         return m
     }
 

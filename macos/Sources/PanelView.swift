@@ -17,6 +17,17 @@ struct PanelView: View {
     var bodyHeight: CGFloat = 500
 
     static let width: CGFloat = 440
+    /// Header, footer, gaps and padding around the scroll area (approximate, in points).
+    static let chrome: CGFloat = 78
+
+    /// Measured height of the cards, so the panel ends where they end instead of
+    /// leaving an empty band above the footer.
+    @State private var contentHeight: CGFloat = 0
+
+    var scrollHeight: CGFloat {
+        let room = max(120, bodyHeight - PanelView.chrome)
+        return contentHeight > 0 ? min(contentHeight, room) : room
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -25,22 +36,31 @@ struct PanelView: View {
             case .starting:
                 StatusMessage(icon: nil, title: "Starting Agent Tree…",
                               detail: "Reading your agent logs. The first start can take a moment.")
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    .frame(height: max(120, bodyHeight - PanelView.chrome), alignment: .top)
             case .failed(let msg):
                 StatusMessage(icon: "exclamationmark.circle", title: "The background server stopped",
                               detail: msg, buttonTitle: "Restart", action: actions.restart)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    .frame(height: max(120, bodyHeight - PanelView.chrome), alignment: .top)
             case .live, .mock:
+                let overflows = contentHeight > scrollHeight + 0.5
                 ScrollView(.vertical) {
-                    content.padding(.bottom, 2)
+                    content
+                        .padding(.bottom, 2)
+                        .background(GeometryReader { g in
+                            Color.clear.preference(key: ContentHeightKey.self, value: g.size.height)
+                        })
                 }
                 .scrollIndicators(.hidden)
-                .frame(maxHeight: .infinity)
+                .frame(height: scrollHeight)
+                .onPreferenceChange(ContentHeightKey.self) { h in
+                    if abs(h - contentHeight) > 0.5 { contentHeight = h }
+                }
                 .mask(
-                    // Soft fade at the bottom edge so cut-off cards read as "scroll for more".
+                    // Soft fade at the bottom edge, only when cards are cut off, so it reads
+                    // as "scroll for more".
                     VStack(spacing: 0) {
                         Color.black
-                        LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 14)
+                        LinearGradient(colors: [.black, .black.opacity(overflows ? 0 : 1)], startPoint: .top, endPoint: .bottom).frame(height: 14)
                     }
                 )
             }
@@ -49,7 +69,7 @@ struct PanelView: View {
         .padding(.horizontal, 10)
         .padding(.bottom, 10)
         .padding(.top, topInset + 4)
-        .frame(width: PanelView.width, height: topInset + bodyHeight)
+        .frame(width: PanelView.width)
         .environment(\.colorScheme, .dark)
     }
 
@@ -59,7 +79,7 @@ struct PanelView: View {
         HStack(spacing: 8) {
             TreeMark(size: 14)
             Text("Agent Tree")
-                .font(.system(size: 13.5, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.primary)
             if store.connection == .mock {
                 Chip(text: "Sample data", color: Theme.tertiary)
@@ -73,12 +93,13 @@ struct PanelView: View {
                         Text("\(flags) flag\(flags == 1 ? "" : "s")")
                             .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
                     }
-                    .foregroundStyle(Theme.warn)
-                    .padding(.horizontal, 7)
+                    .foregroundStyle(Theme.warn.opacity(0.95))
+                    .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(Theme.warn.opacity(0.14)))
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
                 .help("Open flags in the full view")
                 .accessibilityLabel("\(flags) flags. Open in the full view")
             }
@@ -164,12 +185,12 @@ struct IconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 24, height: 22)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(hover ? 0.08 : 0)))
+                .frame(width: 26, height: 24)
+                .background(RoundedRectangle(cornerRadius: Style.Radius.control, style: .continuous).fill(hover ? Style.panelHover : .clear))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .buttonStyle(PressableStyle())
+        .onHover { h in withAnimation(Style.quick) { hover = h } }
         .help(label)
         .accessibilityLabel(label)
     }
@@ -188,14 +209,15 @@ struct FooterButton: View {
                 Image(systemName: symbol).font(.system(size: 9.5, weight: .semibold))
                 Text(title).font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(enabled ? Theme.primary.opacity(0.85) : Theme.tertiary)
-            .padding(.horizontal, 8)
-            .frame(height: 22)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(hover && enabled ? 0.12 : 0.07)))
+            .foregroundStyle(enabled ? Theme.primary.opacity(0.88) : Theme.tertiary)
+            .padding(.horizontal, 9)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: Style.Radius.control, style: .continuous)
+                .fill(Color.white.opacity(hover && enabled ? 0.13 : 0.08)))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .buttonStyle(PressableStyle())
+        .onHover { h in withAnimation(Style.quick) { hover = h } }
     }
 }
 
@@ -205,6 +227,7 @@ struct StatusMessage: View {
     let detail: String
     var buttonTitle: String? = nil
     var action: (() -> Void)? = nil
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         VStack(spacing: 10) {
@@ -230,6 +253,13 @@ struct StatusMessage: View {
         .padding(.horizontal, 30)
         .padding(.vertical, 34)
         .frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.cardFill))
+        .background(RoundedRectangle(cornerRadius: Style.Radius.panelCard, style: .continuous).fill(Style.panelCardFill))
+        .overlay(RoundedRectangle(cornerRadius: Style.Radius.panelCard, style: .continuous)
+            .strokeBorder(Style.panelCardStroke(contrast), lineWidth: Style.hairline))
     }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

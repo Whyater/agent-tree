@@ -48,7 +48,7 @@ struct NotchContainer: View {
             .mask(alignment: .top) {
                 GeometryReader { g in
                     let full = reduceMotion || model.expanded
-                    NotchShape(shoulder: NotchContainer.shoulder, bottomRadius: full ? 20 : 12)
+                    NotchShape(shoulder: NotchContainer.shoulder, bottomRadius: full ? 24 : 12)
                         .frame(width: full ? g.size.width : model.collapsedWidth + 2 * NotchContainer.shoulder,
                                height: full ? g.size.height : model.topInset)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

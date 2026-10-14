@@ -44,7 +44,9 @@ final class StatusItemController: NSObject {
     private func updateTitle() {
         guard let button = item?.button else { return }
         if prefs.showPercentInMenuBar, let p = store.highestPercent {
-            let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            // Rounded digits, like the numbers in the panel.
+            let base = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            let font = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 12) } ?? base
             button.attributedTitle = NSAttributedString(string: " " + Fmt.percent(p), attributes: [.font: font, .baselineOffset: 0.5])
             button.toolTip = "Agent Tree: highest plan limit \(Fmt.percent(p)) used"
         } else {
@@ -58,5 +60,18 @@ final class StatusItemController: NSObject {
     /// With a menu set, a click shows the menu instead of calling onClick.
     func setMenu(_ menu: NSMenu?) {
         item?.menu = menu
+    }
+
+    /// Gives menu items small outline SF Symbols, matched by title, the way system menus
+    /// show them. Items without an entry stay plain.
+    static func decorate(_ menu: NSMenu, symbols: [String: String]) {
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        for item in menu.items {
+            guard let name = symbols[item.title],
+                  let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config)
+            else { continue }
+            img.isTemplate = true
+            item.image = img
+        }
     }
 }

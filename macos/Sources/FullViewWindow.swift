@@ -15,18 +15,26 @@ final class FullViewWindowController: NSWindowController, NSWindowDelegate, WKNa
 
     init() {
         let cfg = WKWebViewConfiguration()
+        // Tell the dashboard it is inside the app window (it then leaves room for the
+        // traffic lights). Appended, so the default WebKit user agent stays intact.
+        cfg.applicationNameForUserAgent = [cfg.applicationNameForUserAgent, Self.userAgentToken]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.allowsBackForwardNavigationGestures = true
         webView.setValue(false, forKey: "drawsBackground")   // no white flash before the dark UI paints
+        webView.underPageBackgroundColor = Self.surface
 
+        // The page runs under a transparent title bar, so the window reads as one surface.
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1240, height: 820),
-                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                            backing: .buffered, defer: false)
         win.title = "Agent Tree"
+        win.titleVisibility = .hidden
+        win.titlebarAppearsTransparent = true
         win.minSize = NSSize(width: 760, height: 520)
         win.isReleasedWhenClosed = false
         win.tabbingMode = .disallowed
-        win.backgroundColor = NSColor(red: 0.075, green: 0.078, blue: 0.09, alpha: 1)
+        win.backgroundColor = Self.surface
         win.center()
         win.setFrameAutosaveName("AgentTreeFullView")
         win.contentView = webView
@@ -37,6 +45,17 @@ final class FullViewWindowController: NSWindowController, NSWindowDelegate, WKNa
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Added to the user agent; the dashboard looks for it to style itself as a native window.
+    static let userAgentToken = "AgentTreeApp"
+
+    /// The dashboard's page background in dark and light, shown before it paints and
+    /// behind overscroll.
+    static let surface = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 0x0E / 255, green: 0x0F / 255, blue: 0x11 / 255, alpha: 1)
+            : NSColor(red: 0xF6 / 255, green: 0xF6 / 255, blue: 0xF7 / 255, alpha: 1)
+    }
 
     /// Show the dashboard at a hash route such as "#/thread/cc%3A123".
     func show(base: URL?, hash: String) {
@@ -169,9 +188,11 @@ final class FullViewWindowController: NSWindowController, NSWindowDelegate, WKNa
     static func page(title: String, body: String) -> String {
         """
         <!doctype html><html><head><meta charset="utf-8"><style>
-        html,body{height:100%;margin:0;background:#131417;color:#e8e9ec;font:13px -apple-system,system-ui}
-        main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 40px;text-align:center}
-        h1{font-size:15px;font-weight:600;margin:0} p{color:#9a9ca3;max-width:420px;line-height:1.45;margin:0}
+        :root{color-scheme:light dark}
+        html,body{height:100%;margin:0;background:#0e0f11;color:#e8e9ec;font:13px -apple-system,system-ui}
+        main{box-sizing:border-box;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:28px 40px 0;text-align:center}
+        h1{font-size:15px;font-weight:600;margin:0} p{color:#9a9ca3;font-size:12px;max-width:400px;line-height:1.45;margin:0}
+        @media (prefers-color-scheme:light){html,body{background:#f6f6f7;color:#16171a} p{color:#5f636c}}
         </style></head><body><main><h1>\(title)</h1><p>\(body)</p></main></body></html>
         """
     }
