@@ -82,15 +82,16 @@ app_dirs() {
   fi
 }
 
-# Quit the running app, wait up to ~10 seconds. Does nothing if it is not running.
+# Quit the copy of the app in folder $1 if it is running, waiting up to ~10 seconds.
+# A signal rather than an Apple event, so Terminal never asks for Automation access.
 quit_app() {
-  command -v osascript >/dev/null 2>&1 || return 0
-  [ "$(osascript -e "application id \"$APP_ID\" is running" 2>/dev/null || echo false)" = "true" ] || return 0
+  proc="$1/$APP_NAME/Contents/MacOS/AgentTree"
+  pgrep -f -x "$proc" >/dev/null 2>&1 || return 0
   say "Quitting Agent Tree..."
-  osascript -e "quit app id \"$APP_ID\"" >/dev/null 2>&1 || true
+  pkill -TERM -f -x "$proc" >/dev/null 2>&1 || true
   i=0
   while [ "$i" -lt 20 ]; do
-    [ "$(osascript -e "application id \"$APP_ID\" is running" 2>/dev/null || echo false)" = "true" ] || return 0
+    pgrep -f -x "$proc" >/dev/null 2>&1 || return 0
     sleep 0.5
     i=$((i + 1))
   done
@@ -101,7 +102,7 @@ quit_app() {
 uninstall_app() {
   app_dirs | while IFS= read -r d; do
     if [ -d "$d/$APP_NAME" ]; then
-      quit_app || exit 1
+      quit_app "$d" || exit 1
       rm -rf "${d:?}/$APP_NAME"
       say "Removed $d/$APP_NAME."
     fi
@@ -150,7 +151,7 @@ install_app() {
 
   MNT="$APP_TMP/mnt"
   mkdir -p "$MNT"
-  hdiutil attach -nobrowse -readonly -quiet -mountpoint "$MNT" "$DMG" >/dev/null \
+  hdiutil attach -nobrowse -readonly -quiet -mountpoint "$MNT" "$DMG" </dev/null >/dev/null \
     || { say "Could not open the disk image."; MNT=""; return 1; }
   [ -d "$MNT/$APP_NAME" ] || { say "The disk image does not contain $APP_NAME."; return 1; }
 
@@ -176,11 +177,23 @@ install_app() {
   fi
   hdiutil detach -quiet "$MNT" >/dev/null 2>&1 || true
 
-  if [ -d "$DEST/$APP_NAME" ]; then
-    quit_app || { rm -rf "$NEW"; return 1; }
-    rm -rf "$DEST/$APP_NAME"
+  if [ -e "$DEST/$APP_NAME" ]; then
+    quit_app "$DEST" || { rm -rf "$NEW"; return 1; }
+    rm -rf "$DEST/$APP_NAME" 2>/dev/null
+    if [ -e "$DEST/$APP_NAME" ]; then
+      rm -rf "$NEW"
+      say "Could not remove the old $DEST/$APP_NAME (owned by another user?)."
+      return 1
+    fi
   fi
-  mv "$NEW" "$DEST/$APP_NAME" || { rm -rf "$NEW"; say "Could not move the app into place."; return 1; }
+  # mv into an existing folder would nest the app inside it, so check again first.
+  if [ -e "$DEST/$APP_NAME" ] || ! mv "$NEW" "$DEST/$APP_NAME"; then
+    rm -rf "$NEW"; say "Could not move the app into place."; return 1
+  fi
+  # An older copy in ~/Applications would otherwise linger beside the new one.
+  if [ -z "${AGENT_TREE_APP_DIR:-}" ] && [ "$DEST" = "/Applications" ] && [ -d "$HOME/Applications/$APP_NAME" ]; then
+    quit_app "$HOME/Applications" && rm -rf "${HOME:?}/Applications/$APP_NAME" && say "Removed the older copy in ~/Applications."
+  fi
   APP_PATH="$DEST/$APP_NAME"
   say "Agent Tree app is installed: $APP_PATH"
   if [ "${AGENT_TREE_NO_OPEN:-}" != "1" ]; then

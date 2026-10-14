@@ -57,11 +57,18 @@ final class Preferences: ObservableObject {
     /// card names this app's bundle id to open it, so its binary contains that string.
     static var vorssaintHasCard: Bool {
         vorssaintApps.contains { app in
-            guard let exe = Bundle(url: app)?.executableURL,
-                  let data = try? Data(contentsOf: exe, options: .alwaysMapped) else { return false }
-            return data.range(of: Data("io.github.whyater.agent-tree".utf8)) != nil
+            guard let exe = Bundle(url: app)?.executableURL else { return false }
+            // Scanning a large binary takes a moment, so remember the answer per build.
+            let stamp = (try? exe.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            let key = exe.path + "|" + String(stamp?.timeIntervalSince1970 ?? 0)
+            if let known = cardCache[key] { return known }
+            let found = (try? Data(contentsOf: exe, options: .alwaysMapped))
+                .map { $0.range(of: Data("io.github.whyater.agent-tree".utf8)) != nil } ?? false
+            cardCache[key] = found
+            return found
         }
     }
+    private static var cardCache: [String: Bool] = [:]
 
     private init() {
         if let raw = d.string(forKey: "mode"), let m = AppMode(rawValue: raw) {

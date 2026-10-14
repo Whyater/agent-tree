@@ -12,7 +12,8 @@ One line of reasoning each. Newest at the bottom of each section.
 - **Self-contained `.app` with a bundled Python.** "Download, drag, open" shouldn't depend on which Python a Mac happens to have; macOS's own `python3` is 3.9 behind an Xcode prompt.
 - **App shell is built with `swiftc`, no Xcode project.** `packaging/build_menubar.sh` compiles `macos/Sources` with the Command Line Tools, so building needs nothing beyond them.
 - **Ad-hoc code signing, not notarized.** Notarization needs a paid Apple developer account; the README explains the one-time "Open Anyway" step and offers the `curl | sh` route, which skips Gatekeeper entirely.
-- **`curl | sh` installer writes only to `~/.local`.** Gets a working `att` without sudo, and only downloads a private Python when the system one is older than 3.11.
+- **`curl | sh` installer needs no sudo.** It writes the CLI to `~/.local` and, on macOS, the app to /Applications (or ~/Applications when that isn't writable). Files curl downloads aren't quarantined, so the app opens without the Gatekeeper prompt; the download is checked against the release's SHA-256 and the app's signature before it replaces anything. A private Python is only downloaded when the system one is older than 3.11.
+- **Inside Vorssaint is the default only when Vorssaint has the card.** The app looks for its own bundle id in the installed Vorssaint binary; with the official build it starts in Menu bar panel mode instead of showing nothing.
 
 ## Data and parsing
 
@@ -45,7 +46,7 @@ One line of reasoning each. Newest at the bottom of each section.
 - **Costs are estimates from an editable `prices.toml`.** Unknown models show "?" instead of a guess; the long-context tier is applied per request.
 - **"Covered by plan" is per model family.** Tokens still show; dollars move to a separate greyed "covered" figure and leave the totals.
 - **Long-running and heavy-token flags skip top-level sessions by default.** An interactive session that lasts two hours is normal; a subagent that does is what's worth a look (`include_roots = true` turns it on).
-- **Same-family critic rule compares a reviewer with the most recent non-reviewer sibling before it.** That's the usual "build, then review" pattern; it is labelled heuristic.
+- **Same-family critic rule compares a reviewer with the most recent non-reviewer sibling before it.** That's the usual "build, then review" pattern; it is labelled heuristic. Each agent counts as the model family that did most of the tokens under it, so a small Claude agent that hands a review to Codex is an OpenAI reviewer.
 - **Duplicate-task rule compares normalized descriptions within one tree** at ≥ 0.95 similarity, and descriptions that differ only in numbers ("part 1", "part 2") never match, capped at 400 described nodes per tree to stay fast.
 
 ## Privacy

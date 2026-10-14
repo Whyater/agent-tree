@@ -176,7 +176,6 @@ struct SettingsView: View {
         store.integrations?.vorssaint?.installed ?? Preferences.vorssaintInstalled
     }
 
-
     var claude: ClaudeIntegration? { store.integrations?.claude }
 
     var claudeStatus: String {
