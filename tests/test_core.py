@@ -174,6 +174,16 @@ class ResolveTests(unittest.TestCase):
             self.assertIn("orphan", {r["link_confidence"] for r in rows})
 
 
+def add_builder(conn):
+    """A Claude builder that did its own work, just before the critics in these tests."""
+    db.upsert_node(conn, "cc-agent:BLD", session_id="cc:S", source="claude-code", kind="subagent", parent_hint="toolu_BLD",
+                   description="Build the exporter", model="claude-sonnet-5-5", family="anthropic",
+                   started="2026-10-10T00:02:10.000Z", ended="2026-10-10T00:02:20.000Z")
+    db.put_spawn(conn, "toolu_BLD", "cc:S")
+    db.put_usage(conn, "claude-code", "cc:bld", "cc-agent:BLD", ts="2026-10-10T00:02:15.000Z",
+                 model="claude-sonnet-5-5", input=500, output=500)
+
+
 class FlagTests(unittest.TestCase):
     def test_rules_fire(self):
         with TempIndex() as t:
@@ -188,6 +198,7 @@ class FlagTests(unittest.TestCase):
                            parent_hint="toolu_R", description="Critic: review the parser", model="claude-opus-5-5",
                            family="anthropic", started="2026-10-10T00:02:30.000Z", ended="2026-10-10T00:02:50.000Z")
             db.put_spawn(t.conn, "toolu_R", "cc:S")
+            add_builder(t.conn)
             indexer.resolve(t.conn, t.cfg)
             got = {(r["rule"], r["node_id"]) for r in t.conn.execute("SELECT rule, node_id FROM flags")}
             self.assertIn(("depth", "cx:D"), got)
@@ -201,6 +212,32 @@ class FlagTests(unittest.TestCase):
             self.assertEqual(heur["depth"], 0)
             for (msg,) in t.conn.execute("SELECT message FROM flags"):
                 self.assertLessEqual(len(msg), 200)
+
+    def test_critic_judged_by_the_model_that_ran_under_it(self):
+        # A small Claude agent that hands the review to Codex is an OpenAI critic.
+        with TempIndex() as t:
+            seed_tree(t.conn)
+            add_builder(t.conn)
+            up = db.upsert_node
+            up(t.conn, "cc-agent:R", session_id="cc:S", source="claude-code", kind="subagent", parent_hint="toolu_R",
+               description="Critic: review the parser", model="claude-haiku-5-5", family="anthropic",
+               started="2026-10-10T00:02:30.000Z", ended="2026-10-10T00:09:00.000Z")
+            db.put_spawn(t.conn, "toolu_R", "cc:S")
+            up(t.conn, "wr:/tmp/codex-tasks/review.md", source="wrapper", kind="wrapper",
+               parent_hint="wrapper-caller:/tmp/codex-tasks/review.md", description="review",
+               started="2026-10-10T00:03:00.000Z", ended="2026-10-10T00:08:00.000Z")
+            db.put_link(t.conn, "wrapper-caller", "/tmp/codex-tasks/review.md", "cc-agent:R", "exact")
+            db.put_link(t.conn, "wrapper-codex", "wr:/tmp/codex-tasks/review.md", "cx:RV", "exact")
+            up(t.conn, "cx:RV", session_id="cx:RV", source="codex", kind="root", model="gpt-6.1-sol", family="openai",
+               started="2026-10-10T00:03:05.000Z", ended="2026-10-10T00:07:00.000Z")
+            db.put_usage(t.conn, "claude-code", "cc:rr", "cc-agent:R", ts="2026-10-10T00:02:40.000Z",
+                         model="claude-haiku-5-5", input=50, output=20)
+            db.put_usage(t.conn, "codex", "cx:rv", "cx:RV", ts="2026-10-10T00:05:00.000Z",
+                         model="gpt-6.1-sol", input=40_000, output=2000)
+            t.conn.commit()
+            indexer.resolve(t.conn, t.cfg)
+            got = {(r["rule"], r["node_id"]) for r in t.conn.execute("SELECT rule, node_id FROM flags")}
+            self.assertNotIn(("same_family_critic", "cc-agent:R"), got)
 
     def test_disabled_rule(self):
         with TempIndex() as t:

@@ -60,6 +60,44 @@ def _norm_desc(text: str | None) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).split())
 
 
+def _working_families(nodes: list[dict], children: dict) -> dict:
+    """The model family that did most of each agent's work.
+
+    An agent that only relays a task (a small Claude agent that runs Codex, say) is
+    judged by what ran under it: the family with the most tokens in its subtree.
+    """
+    totals: dict[str, dict] = {}
+
+    def walk(n: dict, seen: set) -> dict:
+        if n["id"] in totals:
+            return totals[n["id"]]
+        acc: dict[str, float] = defaultdict(float)
+        if n["family"]:
+            acc[n["family"]] += n.get("self_total") or 0
+        seen.add(n["id"])
+        for c in children.get(n["id"], ()):
+            if c["id"] not in seen:
+                for fam, tok in walk(c, seen).items():
+                    acc[fam] += tok
+        totals[n["id"]] = acc
+        return acc
+
+    out = {}
+    for n in nodes:
+        if n["kind"] in ROOT_KINDS:
+            continue
+        acc = walk(n, set())
+        out[n["id"]] = max(acc, key=acc.get) if acc and max(acc.values()) > 0 else n["family"]
+    return out
+
+
+def _who(n: dict, family: dict) -> str:
+    working = family.get(n["id"])
+    if not n["model"]:
+        return working or "unknown"
+    return n["model"] if n["family"] == working else f"{working} work under {n['model']}"
+
+
 def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
     rules = load_rules(cfg)
     nodes = [
@@ -131,15 +169,17 @@ def evaluate(conn: sqlite3.Connection, cfg: Config) -> int:
         siblings = defaultdict(list)
         for n in nodes:
             siblings[n["parent_id"]].append(n)
+        family = _working_families(nodes, siblings)
         for group in siblings.values():
             group.sort(key=lambda x: x["started"] or "")
             for i, n in enumerate(group):
-                if not kw or not n["family"] or not kw.search(_text(n)):
+                if not kw or not family.get(n["id"]) or not kw.search(_text(n)):
                     continue
-                builder = next((b for b in reversed(group[:i]) if b["family"] and not kw.search(_text(b))), None)
-                if builder and builder["family"] == n["family"]:
+                builder = next((b for b in reversed(group[:i]) if family.get(b["id"]) and not kw.search(_text(b))), None)
+                if builder and family[builder["id"]] == family[n["id"]]:
                     add("same_family_critic", r, n,
-                        f"Reviewer ({n['model']}) is from the same family as the builder it likely reviewed ({builder['model']})")
+                        f"Reviewer ({_who(n, family)}) is from the same family as the builder it likely reviewed "
+                        f"({_who(builder, family)})")
 
     if r := rule("orphan"):
         for n in nodes:
