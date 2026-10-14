@@ -134,7 +134,7 @@ Exports set `Content-Disposition: attachment`.
 ### Starting the server for an app
 
 `att serve --port 0 --ready-file PATH --no-open` binds a free port on 127.0.0.1 and,
-once it is listening, writes `{"port": 51234, "pid": 4242, "version": "0.2.2"}` to
+once it is listening, writes `{"port": 51234, "pid": 4242, "version": "0.3.0"}` to
 PATH (atomically). Apps read the port from there. The server exits when its
 parent process goes away if `--parent-pid PID` is given.
 
