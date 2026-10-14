@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 
 from . import queries
@@ -98,8 +99,22 @@ def write(conn, cfg) -> None:
     try:
         data = build(conn, cfg)
         path = cfg.home / "live.json"
-        tmp = path.with_name("live.json.tmp")
-        tmp.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
-        os.replace(tmp, path)
+        # Each writer needs its own staging file. A shared ``live.json.tmp``
+        # lets concurrent scans overwrite one another between write and replace,
+        # allowing a partially written snapshot to become visible.
+        payload = json.dumps(data, separators=(",", ":")).encode("utf-8")
+        fd, tmp_name = tempfile.mkstemp(prefix=".live-", suffix=".tmp", dir=cfg.home)
+        tmp = os.fdopen(fd, "wb")
+        try:
+            with tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+            os.replace(tmp_name, path)
+        finally:
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
     except Exception:
         pass

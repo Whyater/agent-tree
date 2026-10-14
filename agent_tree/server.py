@@ -129,7 +129,12 @@ def make_handler(cfg: Config, scan_state: ScanState):
             if self.headers.get("X-Agent-Tree") != "1":
                 return self._error(HTTPStatus.FORBIDDEN, "missing X-Agent-Tree header")
             url = urlparse(self.path)
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except (TypeError, ValueError):
+                return self._error(HTTPStatus.BAD_REQUEST, "invalid Content-Length")
+            if length < 0:
+                return self._error(HTTPStatus.BAD_REQUEST, "invalid Content-Length")
             body = self.rfile.read(min(length, 65536)) if length else b""
             if url.path == "/api/scan":
                 try:

@@ -6,6 +6,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer
 
 from agent_tree import db, export, indexer, queries
@@ -16,6 +17,12 @@ from .helpers import TempIndex
 
 
 class PrivacyTests(unittest.TestCase):
+    def test_future_timestamp_is_not_recent(self):
+        now = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
+        self.assertFalse(indexer._recent("2026-10-14T12:30:00Z", now))
+        # A minute of skew between tools is normal and still counts as recent.
+        self.assertTrue(indexer._recent("2026-10-14T12:01:00Z", now))
+
     def test_truncates_to_limit(self):
         out = clean_text("word " * 100)
         self.assertLessEqual(len(out), TEXT_LIMIT)

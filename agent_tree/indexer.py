@@ -24,6 +24,7 @@ from .sources.base import SourceStats, model_family, now_iso
 
 SOURCES = ("claude_code", "codex", "t3", "wrapper", "events")  # order matters: later sources look up nodes from earlier ones
 RUNNING_WINDOW = timedelta(minutes=10)
+FUTURE_SKEW = timedelta(minutes=2)
 
 
 class ScanBusy(RuntimeError):
@@ -290,7 +291,15 @@ def _recent(ts: str | None, now: datetime) -> bool:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
     except ValueError:
         return False
-    return now - dt < RUNNING_WINDOW
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    age = now.astimezone(timezone.utc) - dt
+    # Records far in the future are clock errors, not active work: treating them
+    # as recent would keep a thread running indefinitely. A little skew between
+    # tools is normal, so a record up to two minutes ahead still counts.
+    return -FUTURE_SKEW <= age < RUNNING_WINDOW
 
 
 def price_usage(conn: sqlite3.Connection, prices: PriceBook) -> None:
