@@ -210,25 +210,33 @@ def daily(conn, cfg, days: int = 30, where: str = "", params: tuple = ()) -> lis
     start = today - timedelta(days=days - 1)
     buckets = {start + timedelta(days=i): {"tokens": [0] * 5, "cost": 0.0, "covered": 0.0, "unpriced": 0, "fam": defaultdict(int)} for i in range(days)}
     cov = {f for f, v in cfg.covered_by_plan.items() if v}
-    q = f"""SELECT u.ts, u.family, u.input, u.cached_input, u.cache_write, u.output, u.reasoning, u.cost
-            {USAGE_JOIN} AND u.ts >= ? {where}"""
+    # Sum in SQL per UTC hour (or minute, for zones with half-hour offsets) and family,
+    # then place each slice in its local day.
+    offsets = {zone.utcoffset(datetime.combine(d, datetime.min.time())) for d in (start, today)}
+    width = 13 if all(o is not None and o.total_seconds() % 3600 == 0 for o in offsets) else 16
+    q = f"""SELECT substr(u.ts, 1, {width}) slot, u.family, SUM(u.input) i, SUM(u.cached_input) c, SUM(u.cache_write) w,
+                   SUM(u.output) o, SUM(u.reasoning) r, SUM(u.cost) cost,
+                   SUM(CASE WHEN u.cost IS NULL AND u.input + u.cached_input + u.cache_write + u.output > 0
+                            THEN 1 ELSE 0 END) unpriced
+            {USAGE_JOIN} AND u.ts >= ? {where} GROUP BY slot, u.family"""
+    pad = ":00:00+00:00" if width == 13 else ":00+00:00"
     for r in conn.execute(q, (to_utc_iso(local_midnight(cfg, start)), *params)):
         try:
-            d = datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).astimezone(zone).date()
-        except (AttributeError, ValueError):
+            d = datetime.fromisoformat(r["slot"].replace("T", " ") + pad).astimezone(zone).date()
+        except (AttributeError, TypeError, ValueError):
             continue
         b = buckets.get(d)
         if b is None:
             continue
-        vals = (r["input"], r["cached_input"], r["cache_write"], r["output"], r["reasoning"])
+        vals = (r["i"], r["c"], r["w"], r["o"], r["r"])
         for i, v in enumerate(vals):
             b["tokens"][i] += v or 0
-        if r["cost"] is None:
-            b["unpriced"] += 1 if sum(vals[:4]) else 0
-        elif r["family"] in cov:
-            b["covered"] += r["cost"]
-        else:
-            b["cost"] += r["cost"]
+        b["unpriced"] += r["unpriced"] or 0
+        if r["cost"] is not None:
+            if r["family"] in cov:
+                b["covered"] += r["cost"]
+            else:
+                b["cost"] += r["cost"]
         b["fam"][r["family"] or "other"] += sum(v or 0 for v in vals[:4])
     return [
         {"day": d.isoformat(), "tokens": tokens(*b["tokens"]), "money": money(b["cost"], b["covered"], b["unpriced"]),
