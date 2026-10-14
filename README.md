@@ -164,8 +164,6 @@ python3 -m unittest discover -s tests -t .   # tests, no real data needed
 packaging/build_app.sh                        # Agent Tree.app and the .dmg (needs Xcode or its Command Line Tools)
 ```
 
-[DECISIONS.md](DECISIONS.md) explains the main design choices.
-
 ## License
 
 MIT

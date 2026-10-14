@@ -68,9 +68,8 @@ A wrapper such as `codex-agent.sh <tier> <sandbox> <workdir> <task-file>` runs
 
 - **Inferred T3 → Claude links** only happen for threads with no resume cursor
   and no imported id, which is rare on current T3 versions.
-- **Wrapper runs without a log header** fall back to the 120-second window. The
-  [wrapper sidecar proposal](proposals/codex-agent-wrapper.md) removes the guess.
-- **Live status** is a guess (activity in the last 10 minutes) unless the
-  [hooks proposal](proposals/claude-hooks.md) is enabled.
+- **Wrapper runs without a log header** fall back to the 120-second window.
+- **Live status** is a guess (activity in the last 10 minutes) unless Claude Code's
+  hooks are connected (`att connect claude`, see the [guide](GUIDE.md)).
 - These are private, undocumented formats. Each parser records its version on
   every row, and `att doctor` reports skipped lines so format drift is visible.
