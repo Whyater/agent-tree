@@ -66,6 +66,9 @@ def _scan(conn: sqlite3.Connection, cfg: Config, full: bool, only: list[str] | N
         db.wipe(conn)
         conn.commit()
     results: list[SourceStats] = []
+    # Source parsers already skip unchanged files. Track whether any file changed
+    # so a scan with nothing new can skip the global tree, rollup and flag rebuild.
+    data_changed = bool(full)
     for name in SOURCES:
         if only and name not in only:
             continue
@@ -78,17 +81,24 @@ def _scan(conn: sqlite3.Connection, cfg: Config, full: bool, only: list[str] | N
         try:
             stats = module.scan(conn, cfg, full=full)
             conn.commit()
+            data_changed = data_changed or bool(stats.files_parsed)
         except Exception as exc:  # one broken source must not stop the others
             conn.rollback()
             stats = SourceStats(source=name, errors=[f"{type(exc).__name__}: {exc}"])
         stats.notes.append(f"{time.perf_counter() - started:.2f}s")
         results.append(stats)
-    resolve(conn, cfg)
+    # "Running" is a guess from the clock (see resolve step 6), so while anything is
+    # running the statuses must be recomputed even when no file changed.
+    if not data_changed:
+        data_changed = conn.execute("SELECT 1 FROM nodes WHERE status = 'running' LIMIT 1").fetchone() is not None
+    if data_changed:
+        resolve(conn, cfg)
     db.set_meta(conn, "last_scan", now_iso())
     db.set_meta(conn, "last_scan_stats", json.dumps([s.as_dict() for s in results]))
     conn.commit()
-    from .live import write as write_live  # snapshot for apps that show Agent Tree (see live.py)
-    write_live(conn, cfg)
+    if data_changed:
+        from .live import write as write_live  # snapshot for apps that show Agent Tree (see live.py)
+        write_live(conn, cfg)
     return results
 
 

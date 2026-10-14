@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import db, export, indexer, queries
 from .config import Config
+from .cache import read_cache
 
 WEB_ROOT = Path(str(resources.files("agent_tree").joinpath("web")))
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -175,6 +176,19 @@ def make_handler(cfg: Config, scan_state: ScanState):
                 ctype += "; charset=utf-8"
             self._send(200, target.read_bytes(), ctype)
 
+        def _cached(self, endpoint: str, params: tuple, conn, compute):
+            # last_scan is written transactionally at scan commit and therefore
+            # also observes scans performed by another process. Include local
+            # date because relative periods such as today/7d roll over daily.
+            generation = db.get_meta(conn, "last_scan") or ""
+            local_date = queries.datetime.now(queries.tz(cfg)).date().isoformat()
+            def norm(value):
+                # Preserve case-sensitive filters (project, model, query text);
+                # only remove transport whitespace from string parameters.
+                return value.strip() if isinstance(value, str) else value
+            key = (str(cfg.db_path), endpoint, tuple(norm(p) for p in params), generation, local_date)
+            return read_cache.get_or_compute(key, compute)
+
         def _api_get(self, url) -> None:
             qs = {k: v[-1] for k, v in parse_qs(url.query).items()}
             path = url.path
@@ -183,21 +197,28 @@ def make_handler(cfg: Config, scan_state: ScanState):
                 if path == "/api/meta":
                     return self._json(queries.meta(conn, cfg, scan_state.running or indexer.scan_in_progress(cfg)))
                 if path == "/api/summary":
-                    return self._json(queries.summary(conn, cfg))
+                    return self._json(self._cached("summary", (), conn, lambda: queries.summary(conn, cfg)))
                 if path == "/api/threads":
-                    return self._json(queries.list_threads(
-                        conn, cfg, project=qs.get("project"), source=qs.get("source"), model=qs.get("model"),
-                        since=qs.get("since"), until=qs.get("until"), flagged=qs.get("flagged") in ("1", "true"),
-                        q=qs.get("q"), sort=qs.get("sort", "started"),
-                        limit=max(1, min(int(qs.get("limit", 200)), 5000)), offset=max(0, int(qs.get("offset", 0)))))
+                    project, source, model = qs.get("project"), qs.get("source"), qs.get("model")
+                    since, until, q = qs.get("since"), qs.get("until"), qs.get("q")
+                    flagged = qs.get("flagged") in ("1", "true")
+                    sort = qs.get("sort", "started")
+                    limit = max(1, min(int(qs.get("limit", 200)), 5000))
+                    offset = max(0, int(qs.get("offset", 0)))
+                    params = (project, source, model, since, until, flagged, q, sort, limit, offset)
+                    return self._json(self._cached("threads", params, conn, lambda: queries.list_threads(
+                        conn, cfg, project=project, source=source, model=model, since=since, until=until,
+                        flagged=flagged, q=q, sort=sort, limit=limit, offset=offset)))
                 if path.startswith("/api/threads/"):
                     tid = unquote(path[len("/api/threads/"):])
                     detail = queries.thread_detail(conn, cfg, tid)
                     return self._json(detail) if detail else self._error(404, f"thread not found: {tid}")
                 if path == "/api/projects":
-                    return self._json(queries.projects(conn, cfg, qs.get("since", "90d")))
+                    since = qs.get("since", "90d")
+                    return self._json(self._cached("projects", (since,), conn, lambda: queries.projects(conn, cfg, since)))
                 if path == "/api/models":
-                    return self._json(queries.models(conn, cfg, qs.get("since", "30d")))
+                    since = qs.get("since", "30d")
+                    return self._json(self._cached("models", (since,), conn, lambda: queries.models(conn, cfg, since)))
                 if path == "/api/integrations":
                     from .integrations import status
                     return self._json(status(cfg))
@@ -208,9 +229,10 @@ def make_handler(cfg: Config, scan_state: ScanState):
                     return self._json(queries.now(conn, cfg))
                 if path == "/api/verify":
                     from .verify import run_checks
-                    return self._json(run_checks(conn, cfg))
+                    return self._json(self._cached("verify", (), conn, lambda: run_checks(conn, cfg)))
                 if path == "/api/flags":
-                    return self._json(queries.flags(conn, cfg, qs.get("since"), qs.get("rule"), qs.get("severity")))
+                    since, rule, severity = qs.get("since"), qs.get("rule"), qs.get("severity")
+                    return self._json(self._cached("flags", (since, rule, severity), conn, lambda: queries.flags(conn, cfg, since, rule, severity)))
                 if path.startswith("/api/export/"):
                     return self._export(conn, path[len("/api/export/"):], qs)
                 return self._error(404, "unknown endpoint")
