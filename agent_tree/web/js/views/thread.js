@@ -6,8 +6,9 @@ import {
 import { api, threadPath, exportPath } from "../api.js";
 import { VirtualList, loadingState, errorState, emptyState, showTooltip, hideTooltip, ttRow, familyLegend, observeWidth } from "../ui.js";
 
-const ROW_H = 30;
+const ROW_H = 32;
 const HEADER_H = 56;
+const TIMELINE_MIN = 140; // narrowest the timeline pane gets before the tree gives up width
 const LINK_TEXT = {
   exact: ["Exact", "Matched by tool_use id: the parent session records launching this agent."],
   inferred: ["Inferred", "Matched by time window: no direct id link was found, so the parent running at that moment was chosen. This link may be wrong."],
@@ -64,8 +65,11 @@ class ThreadView {
     this.showTimeline = store.get("timeline", true);
     this.mode = store.get("totals", "self");
     this.flaggedOnly = false;
-    this.panelOpen = store.get("panel", true);
-    this.treeW = store.get("treeW", 720);
+    // Below 1000px the details panel floats over the tree, so it starts closed there;
+    // opening it is an explicit choice (Details button, Enter, or a link to a node).
+    this.narrow = window.matchMedia("(max-width: 999px)");
+    this.panelOpen = this.narrow.matches ? false : store.get("panel", true);
+    this.treeW = store.get("treeW", 800);
     this.selected = this.roots[0] ? this.roots[0].id : null;
     // default expansion: everything for small trees, top two levels for big ones
     this.expanded = new Set();
@@ -142,14 +146,18 @@ class ThreadView {
 
   computeVisible() {
     const out = [];
-    const walk = (list) => {
-      list.forEach((n, i) => {
-        if (this.flaggedOnly && !this.flagKeep.has(n.id)) return;
-        out.push({ n, pos: i + 1, size: list.length });
-        if (this.expanded.has(n.id)) walk(this.kids.get(n.id));
+    // guides[j] tells the row whether the branch line in indent column j continues
+    // below it (the ancestor at that level, or the node itself for the last column,
+    // still has siblings after it).
+    const walk = (list, level, guides) => {
+      const shown = this.flaggedOnly ? list.filter((n) => this.flagKeep.has(n.id)) : list;
+      shown.forEach((n, i) => {
+        const mine = level ? [...guides, i < shown.length - 1] : [];
+        out.push({ n, pos: i + 1, size: shown.length, level, guides: mine });
+        if (this.expanded.has(n.id)) walk(this.kids.get(n.id), level + 1, mine);
       });
     };
-    walk(this.roots);
+    walk(this.roots, 0, []);
     this.visible = out;
     this.rowOf = new Map(out.map((r, i) => [r.n.id, i]));
   }
@@ -233,7 +241,7 @@ class ThreadView {
     this.setupResizer();
 
     this.vlist = new VirtualList({ scroller: this.scroller, spacer: this.rowsEl, rowHeight: ROW_H, renderRow: (i) => this.renderRow(i), overscan: 14, offsetTop: HEADER_H });
-    observeWidth(this.axis, (w) => { this.axisW = w; this.renderAxis(); });
+    this.stopObserving = observeWidth(this.axis, (w) => { this.axisW = w; this.renderAxis(); });
   }
 
   renderModeSeg() {
@@ -250,10 +258,10 @@ class ThreadView {
   }
 
   applyTreeWidth() {
-    const max = Math.max(480, (this.scroller.clientWidth || window.innerWidth) - 220);
-    this.treeW = Math.max(460, Math.min(this.treeW, max));
+    const max = Math.max(460, (this.scroller.clientWidth || window.innerWidth) - TIMELINE_MIN);
+    this.treeW = Math.max(440, Math.min(this.treeW, max));
     this.grid.style.setProperty("--tree-w", this.showTimeline ? this.treeW + "px" : "100%");
-    this.grid.style.minWidth = this.showTimeline ? `calc(${this.treeW}px + 260px)` : "";
+    this.grid.style.minWidth = this.showTimeline ? `calc(${this.treeW}px + ${TIMELINE_MIN}px)` : "";
   }
 
   setupResizer() {
@@ -264,6 +272,7 @@ class ThreadView {
       this.applyTreeWidth();
     };
     const up = () => {
+      this.endDrag = null;
       this.resizer.classList.remove("dragging");
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -277,6 +286,7 @@ class ThreadView {
       this.resizer.classList.add("dragging");
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      this.endDrag = up;
     });
   }
 
@@ -378,7 +388,7 @@ class ThreadView {
 
   // ------------------------------------------------------------- rows
   renderRow(i) {
-    const { n, pos, size } = this.visible[i];
+    const { n, pos, size, level, guides } = this.visible[i];
     const kids = this.kids.get(n.id);
     const hasKids = kids.length > 0;
     const open = this.expanded.has(n.id);
@@ -388,10 +398,13 @@ class ThreadView {
     const parent = n.parent_id ? this.byId.get(n.parent_id) : null;
 
     const indent = h("span", { class: "indent", "aria-hidden": "true" });
-    for (let d = 0; d < n.depth; d++) indent.append(h("i"));
+    for (let j = 0; j < level; j++) {
+      const own = j === level - 1;
+      indent.append(h("i", { class: own ? (guides[j] ? "tee" : "elbow") : (guides[j] ? "pipe" : null) }));
+    }
     const caret = hasKids
       ? h("span", { class: "caret", "aria-hidden": "true", onclick: (e) => { e.stopPropagation(); this.toggle(n.id); } }, icon("caret", 12))
-      : h("span", { class: "caret leaf", "aria-hidden": "true" });
+      : h("span", { class: "caret leaf " + famClass(n.model ? n.family : "other"), "aria-hidden": "true" });
 
     const tags = h("span", { class: "tags" });
     if (n.link_confidence && n.link_confidence !== "exact") {
@@ -407,12 +420,13 @@ class ThreadView {
     const live = ["running", "active", "async_launched"].includes(status);
     const bad = ["failed", "error", "aborted", "killed"].includes(status);
     const stGlyph = done ? icon("check", 12)
-      : live ? s("svg", { width: 10, height: 10, viewBox: "0 0 10 10", "aria-hidden": "true" }, s("circle", { cx: 5, cy: 5, r: 3.5, fill: "currentColor" }))
+      : live ? s("svg", { class: "pulse", width: 10, height: 10, viewBox: "0 0 10 10", "aria-hidden": "true" }, s("circle", { cx: 5, cy: 5, r: 3.5, fill: "currentColor" }))
         : bad ? icon("x", 12)
           : status === "stopped" ? h("span", { "aria-hidden": "true" }, "–") : h("span", { "aria-hidden": "true" }, "?");
 
     const desc = n.description;
-    const text = h("span", { class: "txt", title: this.label(n) }, this.label(n),
+    // The role wraps onto a hidden second line when it can't show whole (see .trow .txt).
+    const text = h("span", { class: "txt", title: this.label(n) }, h("span", { class: "nm" }, this.label(n)),
       desc && n.agent_type && n.agent_type !== desc ? h("span", { class: "at" }, n.agent_type) : null);
 
     const cells = h("div", { class: "cells" },
@@ -432,7 +446,7 @@ class ThreadView {
       "aria-label": `${this.label(n)}, ${n.model ? prettyModel(n.model) : "no model"}, ${status}, ${fmtDur(n.wall_ms)}, ${fmtTokens(totals.tokens.total)} tokens, ${costText(totals.money)}${fl.length ? `, ${fl.length} flag${fl.length > 1 ? "s" : ""}` : ""}${n.link_confidence !== "exact" ? ", link " + n.link_confidence : ""}`,
     }, cells);
     if (this.showTimeline) row.append(this.renderBar(n, hasKids && !open));
-    row.addEventListener("click", () => { this.select(n.id, { openPanel: true }); this.scroller.focus({ preventScroll: true }); });
+    row.addEventListener("click", () => { this.select(n.id, { openPanel: !this.narrow.matches }); this.scroller.focus({ preventScroll: true }); });
     row.addEventListener("dblclick", () => hasKids && this.toggle(n.id));
     return row;
   }
@@ -569,7 +583,7 @@ class ThreadView {
 
   togglePanel(force) {
     this.panelOpen = force !== undefined ? force : !this.panelOpen;
-    store.set("panel", this.panelOpen);
+    if (!this.narrow.matches) store.set("panel", this.panelOpen); // the narrow default stays closed
     this.panelBtn.setAttribute("aria-pressed", String(this.panelOpen));
     this.renderPanel();
     requestAnimationFrame(() => { this.applyTreeWidth(); this.renderAxis(); });
@@ -634,26 +648,39 @@ class ThreadView {
     const link = isTop ? ["None", "This is the top of the tree, so it has no parent to link to."] : (LINK_TEXT[n.link_confidence] || [n.link_confidence || "unknown", ""]);
     const kv = (pairs) => h("dl", { class: "kv" }, pairs.filter(Boolean).map(([k, v]) => [h("dt", null, k), h("dd", null, v === null || v === undefined || v === "" ? h("span", { class: "muted" }, "–") : v)]));
 
+    // A synthetic top node (a T3 thread with no model and no usage of its own) would
+    // show a page of dashes; summarise the work under it instead.
+    const summary = hasKids && !n.model && !(n.self.tokens && n.self.tokens.total > 0);
+    const tokCols = summary ? ["subtree"] : hasKids ? ["self", "subtree"] : ["self"];
     const tokRow = (label, key, sub = false) => h("tr", null, h("td", { class: sub ? "sub" : "" }, label),
-      h("td", { class: "num" }, fmtInt(n.self.tokens[key])), hasKids ? h("td", { class: "num" }, fmtInt(n.subtree.tokens[key])) : null);
+      tokCols.map((c) => h("td", { class: "num" }, fmtInt(n[c].tokens[key]))));
+    const levels = (k) => `${k} level${k === 1 ? "" : "s"}`;
+    const stat = (label, value, cap) => h("div", null, h("div", { class: "label" }, label), h("div", { class: "v" }, value), cap ? h("div", { class: "cap" }, cap) : null);
 
-    this.panel.append(
-      h("div", { class: "panel-head" },
-        h("div", { class: "ttl" },
-          h("h2", null, this.label(n)),
-          h("div", { class: "sub" }, h("span", null, KIND_LABEL[n.kind] || n.kind), n.agent_type ? h("span", null, "· " + n.agent_type) : null, h("span", null, "· depth " + n.depth))),
-        h("button", { class: "btn small icon ghost", type: "button", "aria-label": "Close details (Esc)", title: "Close (Esc)", onclick: () => this.togglePanel(false) }, icon("close"))),
+    const statSec = h("section", { class: "panel-sec" },
+      h("div", { class: "two-stat" },
+        summary
+          ? [stat("Subtree est. cost", costEl(n.subtree.money), `${n.subtree.nodes} agents`),
+            stat("Subtree tokens", h("span", { title: fmtInt(n.subtree.tokens.total) }, fmtTokens(n.subtree.tokens.total)), levels(n.subtree.max_depth))]
+          : [stat("Self est. cost", costEl(n.self.money)),
+            hasKids ? stat("Subtree est. cost", costEl(n.subtree.money), `${n.subtree.nodes} agents`) : stat("Tokens", fmtTokens(n.self.tokens.total))]),
+      !summary && n.covered ? h("p", { class: "explain" }, `${FAMILY_LABEL[n.family] || n.family} usage is marked covered by plan. The greyed figure is what it would cost at API prices; it is not in totals.`) : null,
+      !summary && n.self.money && n.self.money.cost === null ? h("p", { class: "explain" }, `No price is set for ${n.model}. Tokens are counted, cost shows "?". Add it to prices.toml to estimate it.`) : null);
 
-      h("section", { class: "panel-sec" },
-        h("div", { class: "two-stat" },
-          h("div", null, h("div", { class: "label" }, "Self est. cost"), h("div", { class: "v" }, costEl(n.self.money))),
-          hasKids ? h("div", null, h("div", { class: "label" }, `Subtree est. cost · ${n.subtree.nodes} agents`), h("div", { class: "v" }, costEl(n.subtree.money))) : h("div", null, h("div", { class: "label" }, "Tokens"), h("div", { class: "v" }, fmtTokens(n.self.tokens.total)))),
-        n.covered ? h("p", { class: "explain" }, `${FAMILY_LABEL[n.family] || n.family} usage is marked covered by plan. The greyed figure is what it would cost at API prices; it is not in totals.`) : null,
-        n.self.money && n.self.money.cost === null ? h("p", { class: "explain" }, `No price is set for ${n.model}. Tokens are counted, cost shows "?". Add it to prices.toml to estimate it.`) : null),
-
-      h("section", { class: "panel-sec" }, h("h3", null, "Agent"),
+    const factsSec = summary
+      ? h("section", { class: "panel-sec" }, h("h3", null, "Subtree"),
         kv([
-          ["Model", n.model ? h("span", { style: { display: "inline-flex", gap: "6px", alignItems: "center" } }, modelBadge(n.model, n.family), h("span", { class: "mono muted" }, n.model)) : null],
+          ["Models", this.subtreeModels(n.id)],
+          ["Source", SOURCE_LABEL[n.source] || n.source],
+          ["Status", n.status],
+          ["Started", h("span", { title: n.started || "" }, fmtAbs(tt.a, { seconds: true }))],
+          ["Ended", n.ended ? h("span", { title: n.ended }, fmtAbs(parseTs(n.ended), { seconds: true })) : (tt.running ? "still running" : null)],
+          ["Wall time", fmtDur(tt.running ? this.now - tt.a : n.wall_ms)],
+          ["Children", `${this.kids.get(n.id).length} direct, ${n.subtree.nodes - 1} total, ${levels(n.subtree.max_depth)}`],
+        ]))
+      : h("section", { class: "panel-sec" }, h("h3", null, "Agent"),
+        kv([
+          ["Model", n.model ? h("span", { style: { display: "inline-flex", flexWrap: "wrap", gap: "4px 6px", alignItems: "center" } }, modelBadge(n.model, n.family), h("span", { class: "mono muted" }, n.model)) : null],
           ["Family", FAMILY_LABEL[n.family] || n.family],
           ["Effort", n.effort],
           ["Role", n.role],
@@ -662,16 +689,26 @@ class ThreadView {
           ["Started", h("span", { title: n.started || "" }, fmtAbs(tt.a, { seconds: true }))],
           ["Ended", n.ended ? h("span", { title: n.ended }, fmtAbs(parseTs(n.ended), { seconds: true })) : (tt.running ? "still running" : null)],
           ["Wall time", fmtDur(tt.running ? this.now - tt.a : n.wall_ms)],
-          hasKids ? ["Children", `${this.kids.get(n.id).length} direct, ${n.subtree.nodes - 1} total, ${n.subtree.max_depth} level${n.subtree.max_depth === 1 ? "" : "s"}`] : null,
-        ])),
+          hasKids ? ["Children", `${this.kids.get(n.id).length} direct, ${n.subtree.nodes - 1} total, ${levels(n.subtree.max_depth)}`] : null,
+        ]));
+
+    this.panel.append(
+      h("div", { class: "panel-head" },
+        h("div", { class: "ttl" },
+          h("h2", null, this.label(n)),
+          h("div", { class: "sub" }, h("span", null, KIND_LABEL[n.kind] || n.kind), n.agent_type ? h("span", null, "· " + n.agent_type) : null, h("span", null, "· depth " + n.depth))),
+        h("button", { class: "btn small icon ghost", type: "button", "aria-label": "Close details (Esc)", title: "Close (Esc)", onclick: () => this.togglePanel(false) }, icon("close"))),
+
+      statSec,
+      factsSec,
 
       h("section", { class: "panel-sec" }, h("h3", null, "Tokens"),
         h("table", { class: "tok-table" },
-          h("thead", null, h("tr", null, h("th", null, ""), h("th", null, "Self"), hasKids ? h("th", null, "Subtree") : null)),
+          h("thead", null, h("tr", null, h("th", null, ""), tokCols.map((c) => h("th", null, c === "self" ? "Self" : "Subtree")))),
           h("tbody", null,
             tokRow("Input", "input"), tokRow("Cached input", "cached_input"), tokRow("Cache write", "cache_write"),
             tokRow("Output", "output"), tokRow("of which reasoning", "reasoning", true),
-            h("tr", { class: "total" }, h("td", null, "Total"), h("td", { class: "num" }, fmtInt(n.self.tokens.total)), hasKids ? h("td", { class: "num" }, fmtInt(n.subtree.tokens.total)) : null)))),
+            h("tr", { class: "total" }, h("td", null, "Total"), tokCols.map((c) => h("td", { class: "num" }, fmtInt(n[c].tokens.total))))))),
 
       h("section", { class: "panel-sec" }, h("h3", null, "Link to parent"),
         kv([
@@ -695,7 +732,27 @@ class ThreadView {
           h("dt", null, "Parser"), h("dd", null, h("code", null, n.parser_version || "–")))));
   }
 
+  /** Model badges with agent counts for everything below a node, most used first. */
+  subtreeModels(id) {
+    const count = new Map();
+    const stack = [...this.kids.get(id)];
+    while (stack.length) {
+      const c = stack.pop();
+      if (c.model) {
+        const e = count.get(c.model) || { family: c.family, n: 0 };
+        e.n++;
+        count.set(c.model, e);
+      }
+      stack.push(...this.kids.get(c.id));
+    }
+    if (!count.size) return null;
+    return h("span", { class: "model-list" }, [...count.entries()].sort((a, b) => b[1].n - a[1].n).map(([m, e]) =>
+      h("span", { class: "model-count" }, modelBadge(m, e.family), h("span", { class: "muted" }, "×" + e.n))));
+  }
+
   destroy() {
     this.vlist.destroy();
+    if (this.stopObserving) this.stopObserving();
+    if (this.endDrag) this.endDrag();   // leaving the page mid-drag
   }
 }

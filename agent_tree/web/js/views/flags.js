@@ -53,18 +53,24 @@ export function mount(ctx) {
         q.rule || q.severity || q.since ? [{ label: "Clear filters", onclick: () => ctx.setQuery({}) }] : []));
       nav = null;
     } else {
+      // Message has its own column on wide pages; on narrow ones the CSS hides that
+      // column and shows the same text as a second line under the rule.
       const rows = flags.map((f) => h("tr", { "aria-selected": "false" },
-        h("td", null, flagGlyph(f.severity)),
-        h("td", null, h("span", null, ruleLabel[f.rule] || f.rule), f.heuristic ? [" ", h("span", { class: "chip dashed", title: "Heuristic" }, "heuristic")] : null),
-        h("td", { class: "title-cell dim" }, h("span", { class: "cell-ellipsis", title: f.message }, f.message)),
-        h("td", { style: { maxWidth: "260px" } }, h("a", { href: href(f), class: "cell-ellipsis" }, f.thread_title || f.tree_id)),
-        h("td", { class: "dim", title: fmtAbs(f.ts, { seconds: true }) }, fmtRel(f.ts))));
+        h("td", { class: "c-sev" }, flagGlyph(f.severity)),
+        h("td", { class: "c-rule" },
+          h("div", { class: "rule-line" }, h("span", { class: "cell-ellipsis" }, ruleLabel[f.rule] || f.rule),
+            f.heuristic ? h("span", { class: "chip dashed", title: "Heuristic" }, "heuristic") : null),
+          h("div", { class: "msg-inline dim cell-ellipsis", title: f.message, "aria-hidden": "true" }, f.message)),
+        h("td", { class: "c-msg dim" }, h("span", { class: "cell-ellipsis", title: f.message }, f.message)),
+        h("td", { class: "c-thread" }, h("a", { href: href(f), class: "cell-ellipsis", title: f.thread_title || f.tree_id }, f.thread_title || f.tree_id)),
+        h("td", { class: "c-when dim", title: fmtAbs(f.ts, { seconds: true }) }, fmtRel(f.ts))));
       listCard = h("section", { class: "card", "aria-labelledby": "fl-h" },
         h("div", { class: "card-head" }, h("h2", { id: "fl-h" }, `${flags.length.toLocaleString("en-US")} flag${flags.length === 1 ? "" : "s"}`),
           q.rule ? h("span", { class: "chip" }, ruleLabel[q.rule] || q.rule) : null,
           h("div", { class: "meta" }, "Click a flag to open its agent in the tree")),
-        h("table", { class: "table" },
-          h("thead", null, h("tr", null, h("th", null, "Severity"), h("th", null, "Rule"), h("th", null, "Message"), h("th", null, "Thread"), h("th", null, "When"))),
+        h("table", { class: "table flag-table" },
+          h("thead", null, h("tr", null, h("th", { class: "c-sev" }, "Severity"), h("th", { class: "c-rule" }, "Rule"), h("th", { class: "c-msg" }, "Message"),
+            h("th", { class: "c-thread" }, "Thread"), h("th", { class: "c-when" }, "When"))),
           h("tbody", null, rows)));
       nav = new RowNav(rows, (i) => ctx.navigate(href(flags[i])));
     }

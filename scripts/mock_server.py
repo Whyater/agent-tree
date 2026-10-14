@@ -41,6 +41,16 @@ except Exception:  # pragma: no cover - tzdata missing
 WEB_ROOT = Path(__file__).resolve().parent.parent / "agent_tree" / "web"
 TZ_NAME = "America/Denver"
 
+
+def _app_version() -> str:
+    """The real package version, so screenshots show what ships."""
+    init = WEB_ROOT.parent / "__init__.py"
+    m = re.search(r'__version__\s*=\s*"([^"]+)"', init.read_text(encoding="utf-8")) if init.exists() else None
+    return m.group(1) if m else "0.0.0"
+
+
+APP_VERSION = _app_version()
+
 # --------------------------------------------------------------------------- #
 # Prices (USD per 1M tokens) and families
 # --------------------------------------------------------------------------- #
@@ -868,7 +878,7 @@ class State:
         n_cc = sum(1 for _, n in self.all_nodes() if n["source"] == "claude-code")
         n_cx = sum(1 for _, n in self.all_nodes() if n["source"] == "codex")
         n_t3 = sum(1 for _, n in self.all_nodes() if n["source"] == "t3")
-        return {"version": "0.1.0", "last_scan": iso(self.last_scan), "scan_running": self.scan_running,
+        return {"version": APP_VERSION, "last_scan": iso(self.last_scan), "scan_running": self.scan_running,
                 "metadata_only": self.args.metadata_only, "covered_by_plan": COVERED, "timezone": TZ_NAME,
                 "sources": [
                     {"source": "claude-code", "present": True, "root": "~/.claude", "files": n_cc,

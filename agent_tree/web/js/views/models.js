@@ -1,7 +1,7 @@
 // Models: usage per family and model, daily split, task-type share (heuristic).
 import { h, clear, fmtTokens, fmtInt, costEl, modelBadge, famClass, FAMILY_LABEL, FAMILY_ORDER, threadsSince } from "../util.js";
 import { api } from "../api.js";
-import { loadingState, errorState, emptyState, firstRunState, dailyStackedChart, familyLegend, RowNav } from "../ui.js";
+import { loadingState, errorState, emptyState, firstRunState, dailyStackedChart, familyLegend, RowNav, meter } from "../ui.js";
 
 const RANGES = [["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"]];
 const TASKS = ["build", "review", "research", "scan", "design", "test", "other"];
@@ -67,8 +67,7 @@ export function mount(ctx) {
       h("td", { class: "num" }, m.threads),
       h("td", { class: "num" }, m.nodes),
       h("td", { class: "num" }, fmtTokens(m.tokens.total)),
-      h("td", { style: { width: "18%" } }, h("div", { class: "share " + famClass(m.family), role: "img", "aria-label": `${Math.round((m.tokens.total / totalTok) * 100)}% of tokens` },
-        h("span", { style: { width: (m.tokens.total / maxTok) * 100 + "%" } }))),
+      h("td", { style: { width: "18%" } }, meter((m.tokens.total / maxTok) * 100, { fam: m.family, label: `${Math.round((m.tokens.total / totalTok) * 100)}% of tokens` })),
       h("td", { class: "num" }, costEl(m.money)),
       h("td", null, m.priced ? h("span", { class: "muted" }, "priced") : h("span", { class: "chip dashed", title: "No price in prices.toml, so cost shows ?" }, "no price"))));
     wrap.append(h("section", { class: "card", "aria-labelledby": "mt-h" },

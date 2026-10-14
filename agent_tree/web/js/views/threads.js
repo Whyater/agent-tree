@@ -4,7 +4,7 @@ import { api } from "../api.js";
 import { VirtualList, loadingState, errorState, emptyState, firstRunState } from "../ui.js";
 
 const PAGE = 200;
-const ROW_H = 46;
+const ROW_H = 48;
 const PRESETS = [["today", "Today"], ["7d", "7d"], ["30d", "30d"], ["all", "All"], ["custom", "Custom"]];
 const DEFAULT_RANGE = "30d";
 const SORTS = { started: "Newest", cost: "Est. cost", tokens: "Tokens" };

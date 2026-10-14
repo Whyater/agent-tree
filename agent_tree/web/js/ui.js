@@ -6,23 +6,21 @@ import { h, s, clear, icon, fmtTokens, fmtUSD, fmtDayShort, fmtDayLong, famClass
 export function loadingState(label = "Loading…", rows = 6) {
   const widths = [72, 54, 88, 61, 79, 46, 67, 58];
   return h("div", { class: "loading", role: "status", "aria-live": "polite" },
-    h("div", { class: "loading-label" }, label),
+    h("div", { class: "loading-label" }, h("span", { class: "spinner", "aria-hidden": "true" }), label),
     h("div", { class: "loading-rows", "aria-hidden": "true" },
       Array.from({ length: rows }, (_, i) => h("span", { style: { width: widths[i % widths.length] + "%" } }))));
 }
 
 export function errorState(err, retry) {
   return h("div", { class: "state", role: "alert" },
-    stateIcon("alertCircle"),
+    stateIcon("alertCircle", "error"),
     h("h2", null, "Could not load this view"),
     h("p", null, err && err.message ? err.message : String(err)),
     h("div", { class: "actions" }, retry ? h("button", { class: "btn", type: "button", onclick: retry }, icon("refresh"), "Retry") : null));
 }
 
-function stateIcon(name) {
-  const el = icon(name, 28);
-  el.setAttribute("class", "state-icon");
-  return el;
+function stateIcon(name, tone = "") {
+  return h("span", { class: "state-tile" + (tone ? " " + tone : ""), "aria-hidden": "true" }, icon(name, 20));
 }
 
 /** Empty state. hint may be a string or nodes. actions: [{label, onclick, primary}] */
@@ -191,6 +189,19 @@ export function shareBar(parts, label) {
     parts.filter((p) => p.value > 0).map((p) => h("span", { class: famClass(p.family), style: { width: (p.value / total) * 100 + "%" } })));
 }
 
+/**
+ * 5px capsule meter. pct is 0 to 100 (clamped for drawing). With thresholds the
+ * fill turns yellow from 60% and red from 85%, the way plan-limit meters read;
+ * otherwise it takes the family colour from `fam` or the accent.
+ */
+export function meter(pct, { label = "", fam = null, thresholds = false } = {}) {
+  const v = Math.max(0, Math.min(100, Number(pct) || 0));
+  const level = thresholds ? (v >= 85 ? " crit" : v >= 60 ? " warn" : "") : "";
+  return h("div", { class: "meter" + (fam ? " " + famClass(fam) + " fam" : "") + level, role: "img", "aria-label": label },
+    h("span", { style: { width: v + "%" } }));
+}
+
+/** Calls fn(width) when el's width changes. Returns a function that stops watching. */
 export function observeWidth(el, fn) {
   let last = -1;
   const ro = new ResizeObserver((entries) => {
@@ -201,6 +212,7 @@ export function observeWidth(el, fn) {
     }
   });
   ro.observe(el);
+  return () => ro.disconnect();
 }
 
 // ----------------------------------------------------------------- virtual list

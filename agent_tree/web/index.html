@@ -12,9 +12,13 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="topbar" id="topbar"></header>
-  <main id="main" tabindex="-1" aria-live="off"></main>
-  <footer class="statusbar" id="statusbar" aria-label="Status"></footer>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="content">
+      <main id="main" tabindex="-1" aria-live="off"></main>
+      <footer class="statusbar" id="statusbar" aria-label="Status"></footer>
+    </div>
+  </div>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <noscript><p style="padding:24px">Agent Tree needs JavaScript enabled.</p></noscript>

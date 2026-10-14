@@ -11,15 +11,15 @@ import * as flags from "./views/flags.js";
 
 const VIEWS = { home, threads, thread, projects, models, flags };
 const NAV = [
-  ["home", "#/", "Overview", "h"],
-  ["threads", "#/threads", "Threads", "t"],
-  ["projects", "#/projects", "Projects", "p"],
-  ["models", "#/models", "Models", "m"],
-  ["flags", "#/flags", "Flags", "f"],
+  ["home", "#/", "Overview", "h", "overview"],
+  ["threads", "#/threads", "Threads", "t", "threads"],
+  ["projects", "#/projects", "Projects", "p", "projects"],
+  ["models", "#/models", "Models", "m", "models"],
+  ["flags", "#/flags", "Flags", "f", "flags"],
 ];
 
 const main = document.getElementById("main");
-const topbar = document.getElementById("topbar");
+const sidebar = document.getElementById("sidebar");
 const statusbar = document.getElementById("statusbar");
 
 const state = {
@@ -87,6 +87,7 @@ function ctx(r) {
 
 function route() {
   hideTooltip();
+  const navigated = booted;
   const r = parseRoute();
   const cur = state.current;
   if (cur && cur.name === r.name && cur.instance.update && sameParams(cur.route, r)) {
@@ -95,14 +96,16 @@ function route() {
     renderTopbar();
     return;
   }
-  mount(r);
+  mount(r, { focus: navigated });
 }
 
 function sameParams(a, b) {
   return JSON.stringify(a.params) === JSON.stringify(b.params);
 }
 
-function mount(r) {
+let booted = false; // the first mount is the page load; later mounts are navigation
+
+function mount(r, { focus = false } = {}) {
   const cur = state.current;
   if (cur && cur.instance.destroy) cur.instance.destroy();
   clear(main);
@@ -121,17 +124,20 @@ function mount(r) {
   renderTopbar();
   const title = NAV.find((n) => n[0] === r.name);
   if (r.name !== "thread") document.title = (title ? title[2] + " · " : "") + "Agent Tree";
+  // After navigation, put keyboard and screen reader focus on the new page, not on
+  // the link that was left behind. A view that focuses something itself (search) runs later.
+  if (focus) main.focus({ preventScroll: true });
 }
 
 function mountCurrent() {
   mount(parseRoute());
 }
 
-// ----------------------------------------------------------------- top bar
+// ----------------------------------------------------------------- sidebar
 
 function renderTopbar() {
   // keep keyboard focus on the same control across re-renders
-  const focusables = () => [...topbar.querySelectorAll("a, button")];
+  const focusables = () => [...sidebar.querySelectorAll("a, button")];
   const focusIdx = focusables().indexOf(document.activeElement);
   rebuildTopbar();
   if (focusIdx >= 0) {
@@ -144,27 +150,70 @@ function rebuildTopbar() {
   const r = state.current ? state.current.route : parseRoute();
   const active = r.name === "thread" ? "threads" : r.name;
   const theme = document.documentElement.getAttribute("data-theme");
+  const { rail: collapsed, forced } = applySidebar(r);
   const m = state.meta;
   const scanning = state.scanning || (m && m.scan_running);
-  clear(topbar).append(
-    h("a", { class: "brand", href: "#/", "aria-label": "Agent Tree, overview" }, logo(18), h("span", null, "Agent Tree")),
-    h("nav", { class: "nav", "aria-label": "Sections" },
-      NAV.map(([name, href, label]) => h("a", { href, "aria-current": name === active ? "page" : null }, label))),
-    h("div", { class: "topbar-right" },
-      h("span", { class: "scan-label", title: m && m.last_scan ? "Last scan " + fmtAbs(m.last_scan, { seconds: true }) : "" },
-        scanning ? "Scanning…" : m ? (m.last_scan ? "Scanned " + fmtRel(m.last_scan) : "Never scanned") : ""),
-      h("button", { class: "btn small" + (m && !m.last_scan ? " primary" : ""), type: "button", disabled: scanning, onclick: () => runScan(), "aria-label": scanning ? "Scan running" : "Scan now" },
-        scanning ? h("span", { class: "spinner", "aria-hidden": "true" }) : icon("refresh", 13), scanning ? "Scanning" : "Scan now"),
-      h("button", { class: "btn small icon ghost", type: "button", onclick: toggleTheme, "aria-label": theme === "dark" ? "Switch to light theme" : "Switch to dark theme", title: theme === "dark" ? "Light theme" : "Dark theme" },
-        icon(theme === "dark" ? "sun" : "moon")),
-      h("button", { class: "btn small icon ghost", type: "button", onclick: showShortcuts, "aria-label": "Keyboard shortcuts", title: "Keyboard shortcuts (?)" }, icon("keyboard"))));
+  const scanText = scanning ? "Scanning…" : m ? (m.last_scan ? "Scanned " + fmtRel(m.last_scan) : "Never scanned") : "";
+  clear(sidebar).append(
+    h("div", { class: "side-head" },
+      h("a", { class: "brand", href: "#/", "aria-label": "Agent Tree, overview", title: "Agent Tree" }, logo(20), h("span", { class: "side-label" }, "Agent Tree")),
+      h("button", {
+        class: "btn icon ghost side-toggle", type: "button", onclick: toggleSidebar, "aria-controls": "sidebar", "aria-expanded": String(!collapsed), hidden: forced,
+        "aria-label": collapsed ? "Expand sidebar" : "Collapse sidebar", title: collapsed ? "Expand sidebar" : "Collapse sidebar",
+      }, icon("sidebar", 16))),
+    h("nav", { class: "side-nav", "aria-label": "Sections" },
+      NAV.map(([name, href, label, , ic]) => h("a", { href, "aria-current": name === active ? "page" : null, title: label, "aria-label": label },
+        icon(ic, 16), h("span", { class: "side-label" }, label)))),
+    h("div", { class: "side-foot" },
+      h("div", { class: "scan-label side-label", title: m && m.last_scan ? "Last scan " + fmtAbs(m.last_scan, { seconds: true }) : "" }, scanText),
+      h("button", {
+        class: "btn scan-btn" + (m && !m.last_scan ? " primary" : ""), type: "button", disabled: scanning, onclick: () => runScan(),
+        "aria-label": scanning ? "Scan running" : "Scan now", title: scanning ? "Scan running" : "Scan now",
+      }, scanning ? h("span", { class: "spinner", "aria-hidden": "true" }) : icon("refresh", 14), h("span", { class: "side-label" }, scanning ? "Scanning" : "Scan now")),
+      h("div", { class: "side-tools" },
+        h("button", { class: "btn icon ghost", type: "button", onclick: toggleTheme, "aria-label": theme === "dark" ? "Switch to light theme" : "Switch to dark theme", title: theme === "dark" ? "Light theme" : "Dark theme" },
+          icon(theme === "dark" ? "sun" : "moon", 16)),
+        h("button", { class: "btn icon ghost", type: "button", onclick: showShortcuts, "aria-label": "Keyboard shortcuts", title: "Keyboard shortcuts (?)" }, icon("keyboard", 16)))));
 }
+
+// Sidebar preference: "collapsed", "open" (pinned open), or unset (automatic).
+// Automatic shows the icon rail on the thread page below 1500px, where the tree needs the width.
+// Below 1000px the rail is forced (same breakpoint as app.css) and the toggle is hidden.
+const AUTO_RAIL_BELOW = 1500;
+const forcedRail = window.matchMedia("(max-width: 999px)");
+function sidebarRail(r) {
+  if (forcedRail.matches) return { rail: true, forced: true };
+  const pref = store.get("sidebar", null);
+  if (pref === "collapsed" || pref === "open") return { rail: pref === "collapsed", forced: false };
+  return { rail: r.name === "thread" && window.innerWidth < AUTO_RAIL_BELOW, forced: false };
+}
+
+function applySidebar(r) {
+  const s = sidebarRail(r);
+  document.documentElement.classList.toggle("sidebar-rail", s.rail);
+  return s;
+}
+
+function toggleSidebar() {
+  const r = state.current ? state.current.route : parseRoute();
+  if (sidebarRail(r).forced) return;
+  store.set("sidebar", document.documentElement.classList.contains("sidebar-rail") ? "open" : "collapsed");
+  renderTopbar();
+  // views that measure their width (charts, the thread timeline) listen with ResizeObserver
+}
+
+window.addEventListener("resize", () => {
+  const r = state.current ? state.current.route : parseRoute();
+  const s = sidebarRail(r);
+  const toggle = sidebar.querySelector(".side-toggle");
+  if (s.rail !== document.documentElement.classList.contains("sidebar-rail") || (toggle && toggle.hidden !== s.forced)) renderTopbar();
+});
 
 function renderStatus() {
   const m = state.meta;
   const parts = [];
   if (state.metaError) {
-    parts.push(h("span", { style: { color: "var(--text)", fontWeight: 600 }, title: state.metaError.message }, state.metaError.status ? "API error" : "Server unreachable"));
+    parts.push(h("span", { class: "status-err", title: state.metaError.message }, h("span", { class: "dot", "aria-hidden": "true" }), state.metaError.status ? "API error" : "Server unreachable"));
   } else if (m) {
     parts.push(h("span", { title: m.last_scan ? fmtAbs(m.last_scan, { seconds: true }) : "" }, m.last_scan ? "Last scan " + fmtRel(m.last_scan) : "No scan yet"));
     const src = (m.sources || []).filter((x) => x.present);
@@ -304,4 +353,4 @@ setInterval(() => {
 
 renderTopbar();
 renderStatus();
-loadMeta().then(() => route());
+loadMeta().then(() => { route(); booted = true; });

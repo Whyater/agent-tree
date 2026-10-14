@@ -1,4 +1,5 @@
 // Shared helpers: DOM building (never innerHTML with data), formatting, icons.
+import { icon } from "./icons.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -266,41 +267,13 @@ export function sourceChain(sources) {
   return wrap;
 }
 
-// ----------------------------------------------------------------- icons (inline SVG, stroke = currentColor)
+// ----------------------------------------------------------------- icons and brand
 
-const ICONS = {
-  search: "M7 12.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11Zm4-1.5 3.5 3.5",
-  caret: "M6 4l4 4-4 4",
-  close: "M4 4l8 8M12 4l-8 8",
-  sun: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M13 3l-1 1M4 12l-1 1",
-  moon: "M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z",
-  refresh: "M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3",
-  download: "M8 2v8m0 0-3-3m3 3 3-3M3 13h10",
-  keyboard: "M2 4.5h12v7H2zM4.5 7h1M7.5 7h1M10.5 7h1M5 9.5h6",
-  copy: "M5.5 5.5h7v7h-7zM3.5 10.5v-7h7",
-  check: "M3.5 8.5 6.5 11.5 12.5 4.5",
-  x: "M5 5l6 6M11 5l-6 6",
-  run: "M8 3v5l3 2",
-  alertCircle: "M8 1.75a6.25 6.25 0 1 0 0 12.5 6.25 6.25 0 0 0 0-12.5ZM8 5v3.5M8 11v.01",
-  tree: "M4 2.5v11M4 6h5M4 12h5",
-  timeline: "M2 4h7M5 8h9M3 12h6",
-  empty: "M2.5 4.5h11v8h-11zM2.5 4.5l2-2h7l2 2M6 8.5h4",
-  plug: "M6 2v3M10 2v3M4.5 5h7v3a3.5 3.5 0 0 1-7 0V5ZM8 11.5V14",
-  filter: "M2.5 3.5h11l-4.2 5v4l-2.6 1.2V8.5z",
-};
+export { icon };
 
-export function icon(name, size = 14) {
-  const d = ICONS[name];
-  return s("svg", { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" },
-    s("path", { d }));
-}
-
-export function logo(size = 18) {
-  return s("svg", { width: size, height: size, viewBox: "0 0 20 20", "aria-hidden": "true", focusable: "false" },
-    s("path", { d: "M6 6v9M6 10h4M6 15h4", fill: "none", stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round" }),
-    s("rect", { x: 3.5, y: 2.5, width: 5, height: 5, rx: 1.3, fill: "currentColor" }),
-    s("rect", { x: 10.5, y: 8, width: 7, height: 4, rx: 1.2, fill: "var(--fam-anthropic)" }),
-    s("rect", { x: 10.5, y: 13, width: 7, height: 4, rx: 1.2, fill: "var(--fam-openai)" }));
+/** App mark: the favicon drawn with heavier connectors (logo-small.svg) so it reads at sidebar size. */
+export function logo(size = 20) {
+  return h("img", { class: "logo", src: "logo-small.svg", width: size, height: size, alt: "", draggable: "false" });
 }
 
 /** Flag severity glyph: warn = triangle, alert = octagon. Shape + text, never colour alone. */
