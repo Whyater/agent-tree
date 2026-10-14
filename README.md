@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/menubar-compact.png" alt="The Agent Tree panel under the menu bar: limits, spending, what's running now and a live agent tree" width="440">
+  <img src="docs/screenshots/thread-dark.png" alt="A thread in Agent Tree: the agent tree with models, time, tokens and cost next to a timeline" width="820">
 </p>
 
 Everything stays on your Mac. It reads local files only, needs no account, and makes no
@@ -87,14 +87,19 @@ the menu bar. It goes away when you move the pointer off it. It shows:
 **Three ways to run it** (Settings → Mode):
 - **Menu bar panel**: the drop-down above, nothing in the Dock.
 - **Inside Vorssaint**: Agent Tree runs in the background and shows up as a card in
-  [Vorssaint](https://github.com/vorssaint/vorssaint-utils)'s AI Agents panel. This needs a
-  Vorssaint build with the Agent Tree card; the [guide](docs/GUIDE.md#inside-vorssaint) shows
-  how to build one.
+  [Vorssaint](https://github.com/vorssaint/vorssaint-utils)'s AI Agents panel. Click the card
+  to open the full view. This needs a Vorssaint build with the Agent Tree card; the
+  [guide](docs/GUIDE.md#inside-vorssaint) shows how to build one. In this mode Agent Tree's own
+  drop-down stays off, so the two never overlap.
 - **Desktop app**: a normal window with a Dock icon. The drop-down panel is optional here.
 
 **Full view.** The whole history in one window: every thread across every project, the
 collapsible agent tree next to a timeline, per-project and per-model totals, flags, and
 exports (JSON, CSV, or a Markdown tree for your notes).
+
+<p align="center">
+  <img src="docs/screenshots/home-dark.png" alt="The Agent Tree overview: spending for today, 7 and 30 days, top models, daily tokens and flags" width="820">
+</p>
 
 **Plan limits without the network.** Claude limits come from the Claude desktop app's own usage
 history and Codex limits from Codex's session logs. Reset times for Claude are estimates,
