@@ -1,17 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="#16181d"/>
-  <rect x="64.5" y="64.5" width="895" height="895" rx="199.5" fill="none" stroke="#2c3038" stroke-width="3"/>
-  <g fill="none" stroke="#5b6270" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 300 V420 H318 V560"/>
-    <path d="M512 420 H706 V560"/>
-    <path d="M318 640 V720 H246 V770"/>
-    <path d="M318 720 H390 V770"/>
-    <path d="M706 640 V770"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2c33"/>
+      <stop offset="1" stop-color="#121317"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="root" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e4e5ea"/>
+    </linearGradient>
+    <linearGradient id="claude" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e28b6d"/>
+      <stop offset="1" stop-color="#d27050"/>
+    </linearGradient>
+    <linearGradient id="openai" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8ea7ff"/>
+      <stop offset="1" stop-color="#7190fb"/>
+    </linearGradient>
+  </defs>
+  <!-- tile: macOS grid, 824 px body with 185 px corners -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <!-- links: main agent -> subagent -> its own subagent -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.38" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M308 402 V466 Q308 514 356 514 H383"/>
+    <path d="M470 580 V676 Q470 724 518 724 H557"/>
   </g>
-  <circle cx="512" cy="262" r="62" fill="#e8895a"/>
-  <circle cx="318" cy="600" r="50" fill="#e8895a"/>
-  <circle cx="706" cy="600" r="50" fill="#4f9fe0"/>
-  <circle cx="246" cy="806" r="38" fill="#4f9fe0"/>
-  <circle cx="390" cy="806" r="38" fill="#4f9fe0"/>
-  <circle cx="706" cy="806" r="38" fill="#e8895a"/>
+  <!-- main agent, a Claude subagent, an OpenAI subagent -->
+  <rect x="236" y="250" width="144" height="144" rx="40" fill="url(#root)"/>
+  <rect x="420" y="464" width="368" height="100" rx="50" fill="url(#claude)"/>
+  <rect x="594" y="674" width="194" height="100" rx="50" fill="url(#openai)"/>
 </svg>
