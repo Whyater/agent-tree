@@ -33,6 +33,9 @@ final class Store: ObservableObject {
     @Published var tree: ThreadDetail?          // live tree for the Tree card
     @Published var integrations: Integrations?
     private var scanQueued = false
+    /// When the last scan ended and how long it took, to space out automatic scans.
+    private var lastScanEnd = Date.distantPast
+    private var lastScanSeconds: TimeInterval = 0
     @Published var scanning = false
     @Published var manualScanning = false     // only user-started scans show a spinner
     @Published var lastError: String?
@@ -147,8 +150,13 @@ final class Store: ObservableObject {
         }
         scanning = true
         defer { scanning = false }
+        // Busy agents write logs nonstop, and every write asks for a scan. Leave a gap
+        // after each automatic scan so the app doesn't scan back to back all day.
+        if !manual { await pause(until: lastScanEnd.addingTimeInterval(scanCooldown)) }
         var retried = false
         while true {
+            let started = Date()
+            defer { lastScanSeconds = Date().timeIntervalSince(started); lastScanEnd = Date() }
             do {
                 try await api.scan()
             } catch APIError.busy where !retried {
@@ -160,10 +168,23 @@ final class Store: ObservableObject {
             } catch {
                 lastError = "Scan failed: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)"
             }
-            if scanQueued { scanQueued = false; retried = false; continue }
+            if scanQueued {
+                scanQueued = false
+                retried = false
+                await pause(until: Date().addingTimeInterval(scanCooldown))
+                continue
+            }
             break
         }
         await refresh()
+    }
+
+    /// At least 10 s between automatic scans, more when scans are slow, never over a minute.
+    private var scanCooldown: TimeInterval { min(60, max(10, lastScanSeconds * 3)) }
+
+    private func pause(until date: Date) async {
+        let wait = date.timeIntervalSinceNow
+        if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
     }
 
     private func waitForServerScan() async {
