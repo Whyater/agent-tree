@@ -22,22 +22,28 @@ network calls, so it works the same on or off a VPN.
 
 ## Download and install
 
-### macOS app (recommended)
+### macOS (one command, recommended)
 
-1. Download the `.dmg` for your Mac from the
-   [latest release](https://github.com/Whyater/agent-tree/releases/latest):
-   `arm64` for Apple silicon, `x86_64` for Intel.
-2. Open it and drag **Agent Tree** into Applications.
-3. Open Agent Tree. The first time, macOS says it can't verify the developer (the app isn't
-   notarized). Go to **System Settings → Privacy & Security** and click **Open Anyway**. You only
-   do this once.
+Open Terminal and paste this:
 
-It includes everything it needs. You don't have to install Python or anything else.
+```sh
+curl -fsSL https://raw.githubusercontent.com/Whyater/agent-tree/main/install.sh | sh
+```
 
-### macOS or Linux, from the terminal
+That's it. It puts **Agent Tree** in your Applications folder, starts it, and adds the `att`
+command. No sudo, no Python to install, and no "can't verify the developer" warning.
+Run the same line again to update.
 
-This installs the `att` command into `~/.local` (no sudo). It uses your Python if it's 3.11 or
-newer and downloads a private copy otherwise.
+Prefer clicking? Download the `.dmg` for your Mac from the
+[latest release](https://github.com/Whyater/agent-tree/releases/latest) (`arm64` for Apple
+silicon, `x86_64` for Intel) and drag **Agent Tree** into Applications. The app isn't
+notarized, so the first time macOS blocks it: go to **System Settings → Privacy & Security** and
+click **Open Anyway**. You only do this once.
+
+### Linux
+
+The same command installs the `att` command into `~/.local` (no sudo). It uses your Python if
+it's 3.11 or newer and downloads a private copy otherwise.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Whyater/agent-tree/main/install.sh | sh
@@ -45,11 +51,16 @@ att open
 ```
 
 `att open` shows the dashboard in your browser. The menu bar app is macOS only.
-To remove it later (your data in `~/.agent-tree` is kept):
+
+### Uninstall
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Whyater/agent-tree/main/install.sh | sh -s -- --uninstall
 ```
+
+This removes the app and the `att` command. Your data in `~/.agent-tree` is kept; delete that
+folder too if you want it all gone. `--no-app` installs only the command, `--app-only` only the
+app.
 
 ### From source
 

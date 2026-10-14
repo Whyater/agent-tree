@@ -68,14 +68,24 @@ def make_handler(cfg: Config, scan_state: ScanState):
         # -- plumbing ---------------------------------------------------------------
         def _host_ok(self) -> bool:
             host = (self.headers.get("Host") or "").strip().lower()
+            port = ""
             if host.startswith("["):  # [::1] or [::1]:8711
                 end = host.find("]")
-                rest = host[end + 1:]
-                if end < 0 or (rest and not rest[1:].isdigit()) or (rest and rest[0] != ":"):
+                if end < 0:
                     return False
-                host = host[: end + 1]
-            else:
-                host = host.rsplit(":", 1)[0]
+                host, rest = host[: end + 1], host[end + 1:]
+                if rest:
+                    if rest[0] != ":":
+                        return False
+                    port = rest[1:]
+                    if not port:
+                        return False
+            elif ":" in host:
+                host, port = host.rsplit(":", 1)
+                if not port:
+                    return False
+            if port and not (port.isascii() and port.isdigit() and int(port) <= 65535):
+                return False
             return host in LOCAL_HOSTS
 
         def _send(self, status: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
