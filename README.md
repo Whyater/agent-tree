@@ -88,7 +88,8 @@ the menu bar. It goes away when you move the pointer off it. It shows:
 - **Menu bar panel**: the drop-down above, nothing in the Dock.
 - **Inside Vorssaint**: Agent Tree runs in the background and shows up as a card in
   [Vorssaint](https://github.com/vorssaint/vorssaint-utils)'s AI Agents panel. This needs a
-  Vorssaint build with the Agent Tree card (see Known limitations).
+  Vorssaint build with the Agent Tree card; the [guide](docs/GUIDE.md#inside-vorssaint) shows
+  how to build one.
 - **Desktop app**: a normal window with a Dock icon. The drop-down panel is optional here.
 
 **Full view.** The whole history in one window: every thread across every project, the
@@ -130,7 +131,9 @@ Details on data sources, costs, flags and privacy are in the [guide](docs/GUIDE.
 ## Known bugs and limitations
 
 - **Inside Vorssaint** only works with a Vorssaint build that includes the Agent Tree card.
-  The official Vorssaint download doesn't have it yet.
+  The official Vorssaint download doesn't have it yet, so for now you build Vorssaint yourself
+  ([how](docs/GUIDE.md#inside-vorssaint)). Agent Tree only picks this mode by itself when it
+  finds the card.
 - Claude **reset times are estimates** unless Claude Code is connected. Claude Code only shares
   exact reset times with its status line.
 - Costs are **list-price estimates**. They don't know about plan discounts, batch pricing or

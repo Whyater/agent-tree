@@ -17,6 +17,9 @@ att top --by cost|tokens|time [--since 7d]
 att flags [--since 7d]
 att export <thread-id> --format json|csv|md
 att export --since 7d --format csv
+att integrations                  which tools are tracked live, and how
+att connect claude [--yes]        add Agent Tree's status line and subagent hooks to Claude Code
+att disconnect claude             remove them again
 att doctor                        check sources, parser health and settings
 att config [--reset prices.toml]  show or reset the settings files
 ```
@@ -37,6 +40,39 @@ Ship the billing export · claude-opus-5-5 · 41m 07s · 6.8M tok · $9.12
 │     └─ /root/ui_polish · gpt-6-luna · 3m 05s · 380k tok · $0.04 · ⚑ openai_on_ui
 └─ Critic: review CSV writer · claude-opus-5-5 · 6m 31s · 1.1M tok · $2.20
 ```
+
+## Inside Vorssaint
+
+[Vorssaint](https://github.com/vorssaint/vorssaint-utils) is a separate menu bar app with an
+AI Agents page in its notch panel. A Vorssaint build with the Agent Tree card shows your live
+agent tree there, under the Now card, so you don't need Agent Tree's own panel.
+
+The two apps share one file. After every scan Agent Tree writes a small summary to
+`~/.agent-tree/live.json` (totals, what's running, and up to 60 agents of the current tree), and
+the card reads it. Vorssaint never writes to Agent Tree's folder and Agent Tree never touches
+Vorssaint's. Neither app contains the other's code: Vorssaint is GPL-3.0 and Agent Tree is MIT.
+
+The official Vorssaint download doesn't include the card yet. Until it does, you can build
+Vorssaint yourself from the branch that adds it. You need the Xcode Command Line Tools
+(`xcode-select --install`).
+
+```sh
+git clone -b agent-tree-card https://github.com/Whyater/vorssaint-utils.git
+cd vorssaint-utils
+./build.sh --dev --install
+```
+
+`--dev` installs it as a separate app, **Vorssaint (Developer)**, next to the official one, so
+nothing you have is replaced. Quit the official Vorssaint before opening it, since both use the
+notch. macOS asks for Vorssaint's permissions again for the new app. Vorssaint's own updater
+installs official builds, which don't have the card, so rebuild after you update.
+
+Then in Agent Tree pick **Settings → Mode → Inside Vorssaint**. Settings shows whether the
+installed Vorssaint has the card. If the card doesn't appear, open Vorssaint's AI Agents settings
+and check that **Agent Tree** isn't switched off.
+
+A card older than 15 minutes shows its tree as finished, and one older than a day disappears,
+so a stopped Agent Tree never leaves stale "working" agents on screen.
 
 ## Where the data comes from
 
