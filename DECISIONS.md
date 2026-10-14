@@ -4,11 +4,13 @@ One line of reasoning each. Newest at the bottom of each section.
 
 ## Product
 
-- **Local web UI, not SwiftUI.** One Python codebase serves the CLI, API and UI; it runs anywhere Python does; a native app would duplicate every query in Swift for little gain.
+- **One Python backend, thin native shell.** Python serves the CLI, API and the full dashboard and runs anywhere; the macOS app is a small SwiftUI menu bar shell that starts the bundled backend and draws only the compact panel, so no query logic is duplicated in Swift.
+- **A drop-down under the menu bar, not a pinned window.** The panel opens when the pointer reaches the top middle of the screen and closes when it leaves, so it never takes up space. Desktop mode adds a normal window for people who want one.
+- **Vorssaint gets a file, not code.** Agent Tree writes `~/.agent-tree/live.json` and a Vorssaint build with the Agent Tree card reads it. Vorssaint is GPL-3.0 and Agent Tree is MIT, so neither project contains the other's code.
 - **No third-party dependencies.** Python 3.11+ standard library only (`sqlite3`, `tomllib`, `http.server`, `zoneinfo`), so installing never needs pip, a compiler or network access to PyPI.
 - **Name: Agent Tree, command `att`.** Short, says what it does, and `att` doesn't collide with common tools.
 - **Self-contained `.app` with a bundled Python.** "Download, drag, open" shouldn't depend on which Python a Mac happens to have; macOS's own `python3` is 3.9 behind an Xcode prompt.
-- **App shell is a stay-open AppleScript applet.** It's built with `osacompile` (no Xcode), shows in the Dock, and handles Quit and reopen properly, which a bare shell-script bundle can't.
+- **App shell is built with `swiftc`, no Xcode project.** `packaging/build_menubar.sh` compiles `macos/Sources` with the Command Line Tools, so building needs nothing beyond them.
 - **Ad-hoc code signing, not notarized.** Notarization needs a paid Apple developer account; the README explains the one-time "Open Anyway" step and offers the `curl | sh` route, which skips Gatekeeper entirely.
 - **`curl | sh` installer writes only to `~/.local`.** Gets a working `att` without sudo, and only downloads a private Python when the system one is older than 3.11.
 
@@ -44,7 +46,7 @@ One line of reasoning each. Newest at the bottom of each section.
 - **"Covered by plan" is per model family.** Tokens still show; dollars move to a separate greyed "covered" figure and leave the totals.
 - **Long-running and heavy-token flags skip top-level sessions by default.** An interactive session that lasts two hours is normal; a subagent that does is what's worth a look (`include_roots = true` turns it on).
 - **Same-family critic rule compares a reviewer with the most recent non-reviewer sibling before it.** That's the usual "build, then review" pattern; it is labelled heuristic.
-- **Duplicate-task rule compares normalized descriptions within one tree** at ≥ 0.9 similarity, capped at 400 described nodes per tree to stay fast.
+- **Duplicate-task rule compares normalized descriptions within one tree** at ≥ 0.95 similarity, and descriptions that differ only in numbers ("part 1", "part 2") never match, capped at 400 described nodes per tree to stay fast.
 
 ## Privacy
 

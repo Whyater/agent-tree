@@ -134,10 +134,12 @@ def make_handler(cfg: Config, scan_state: ScanState):
                     action = json.loads(body or b"{}").get("action")
                 except (ValueError, AttributeError):
                     action = None
-                if action == "connect":
-                    return self._json(integrations.connect_claude(cfg))
-                if action == "disconnect":
-                    return self._json(integrations.disconnect_claude(cfg))
+                if action in ("connect", "disconnect"):
+                    fn = integrations.connect_claude if action == "connect" else integrations.disconnect_claude
+                    try:
+                        return self._json(fn(cfg))
+                    except OSError as e:
+                        return self._json({"ok": False, "error": f"Could not update Claude Code settings: {e.strerror or e}"}, 500)
                 return self._error(HTTPStatus.BAD_REQUEST, 'action must be "connect" or "disconnect"')
             return self._error(HTTPStatus.NOT_FOUND, "unknown endpoint")
 

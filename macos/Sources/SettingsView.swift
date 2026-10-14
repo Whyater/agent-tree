@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var working = false
     @State private var loginError: String?
     @State private var launchAtLogin = Preferences.shared.launchAtLogin
+    @State private var vorssaintHasCard = Preferences.vorssaintHasCard
 
     var body: some View {
         Form {
@@ -71,7 +72,9 @@ struct SettingsView: View {
                         status: store.integrations?.t3?.installed == false ? "Not installed" : "Live via its local database",
                         live: store.integrations?.t3?.installed != false)
                 toolRow("Vorssaint", icon: "rectangle.topthird.inset.filled", color: .secondary,
-                        status: vorssaintInstalled ? "Detected" : "Not installed", live: vorssaintInstalled)
+                        status: !vorssaintInstalled ? "Not installed"
+                            : vorssaintHasCard ? "Shows the Agent Tree card" : "Installed, without the Agent Tree card",
+                        live: vorssaintInstalled && vorssaintHasCard)
             } header: {
                 Text("Integrations")
             } footer: {
@@ -145,7 +148,13 @@ struct SettingsView: View {
         case .compact:
             return "Lives in the menu bar with no Dock icon. Point at the hover zone at the top of the screen and the panel drops down."
         case .insideVorssaint:
-            return "Shows as a card in Vorssaint's AI Agents page. Needs a Vorssaint build with the Agent Tree card."
+            if !vorssaintInstalled {
+                return "Vorssaint isn't installed, so nothing will show. Pick Menu bar panel instead."
+            }
+            if !vorssaintHasCard {
+                return "This Vorssaint doesn't have the Agent Tree card yet, so nothing will show. The guide explains how to add it; until then, Menu bar panel works on its own."
+            }
+            return "Shows as a card in Vorssaint's AI Agents page."
         case .desktop:
             return "A regular app with a Dock icon and a main window."
         }
@@ -166,6 +175,7 @@ struct SettingsView: View {
     var vorssaintInstalled: Bool {
         store.integrations?.vorssaint?.installed ?? Preferences.vorssaintInstalled
     }
+
 
     var claude: ClaudeIntegration? { store.integrations?.claude }
 

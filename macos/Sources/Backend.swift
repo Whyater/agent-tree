@@ -125,6 +125,7 @@ final class Backend {
                 guard let self = self, self.process === proc else { return }
                 self.process = nil
                 if self.stopping { return }
+                self.removeTempDir()
                 let last = self.stderrTail.split(separator: "\n").last.map(String.init) ?? ""
                 var msg = "The background server stopped (exit code \(proc.terminationStatus))."
                 if !last.isEmpty { msg += "\n" + last }
@@ -134,6 +135,8 @@ final class Backend {
         do {
             try p.run()
         } catch {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            removeTempDir()
             state = .failed("Could not start the background server: \(error.localizedDescription)")
             return
         }

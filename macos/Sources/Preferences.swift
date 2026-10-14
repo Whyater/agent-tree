@@ -42,16 +42,28 @@ final class Preferences: ObservableObject {
     /// The hover panel is always on in Compact mode and opt-in in Desktop mode.
     var hoverPanelEnabled: Bool { mode == .compact || (mode == .desktop && notchPanelInDesktop) }
 
-    static var vorssaintInstalled: Bool {
-        FileManager.default.fileExists(atPath: "/Applications/Vorssaint.app")
-            || FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Applications/Vorssaint.app")
+    static var vorssaintApp: URL? {
+        ["/Applications/Vorssaint.app", NSHomeDirectory() + "/Applications/Vorssaint.app"]
+            .map { URL(fileURLWithPath: $0) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    static var vorssaintInstalled: Bool { vorssaintApp != nil }
+
+    /// Whether the installed Vorssaint is a build with the Agent Tree card. The official
+    /// download doesn't have it, and Inside Vorssaint mode would then show nothing. The
+    /// card names this app's bundle id to open it, so its binary contains that string.
+    static var vorssaintHasCard: Bool {
+        guard let app = vorssaintApp, let bundle = Bundle(url: app), let exe = bundle.executableURL,
+              let data = try? Data(contentsOf: exe, options: .alwaysMapped) else { return false }
+        return data.range(of: Data("io.github.whyater.agent-tree".utf8)) != nil
     }
 
     private init() {
         if let raw = d.string(forKey: "mode"), let m = AppMode(rawValue: raw) {
             mode = m
         } else {
-            mode = Preferences.vorssaintInstalled ? .insideVorssaint : .compact
+            mode = Preferences.vorssaintHasCard ? .insideVorssaint : .compact
         }
         showPercentInMenuBar = d.object(forKey: "showPercentInMenuBar") as? Bool ?? true
         showMenuBarIcon = d.object(forKey: "showMenuBarIcon") as? Bool ?? true

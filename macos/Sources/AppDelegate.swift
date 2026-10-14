@@ -127,6 +127,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch prefs.mode {
         case .compact, .insideVorssaint:
             NSApp.setActivationPolicy(.accessory)
+            // The main window belongs to Desktop mode; the menus can still open it on demand.
+            if !initial { fullView?.close() }
         case .desktop:
             NSApp.setActivationPolicy(.regular)
             if !initial || backend.isMock {
