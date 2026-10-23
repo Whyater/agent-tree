@@ -48,7 +48,10 @@ xcrun swiftc -O -swift-version 5 \
 WIDGET="$OUT_APP/Contents/PlugIns/AgentTreeWidget.appex"
 mkdir -p "$WIDGET/Contents/MacOS"
 echo "Compiling widget ($ARCH)"
+# Like Xcode, start the extension in _NSExtensionMain; with the default entry point the
+# widget exits as soon as macOS asks it for its sizes and never reaches the gallery.
 xcrun swiftc -O -swift-version 5 -parse-as-library -application-extension \
+  -Xlinker -e -Xlinker _NSExtensionMain \
   -sdk "$SDK" -target "$ARCH-apple-macos14.0" \
   -module-name AgentTreeWidget \
   -o "$WIDGET/Contents/MacOS/AgentTreeWidget" \
@@ -115,8 +118,8 @@ printf 'APPL????' > "$OUT_APP/Contents/PkgInfo"
 # Ad-hoc signature so the dev build launches cleanly; build_app.sh re-signs the full bundle.
 # A signing failure stops the build unless ALLOW_UNSIGNED=1 is set.
 # The widget is signed first, with its sandbox entitlements, then sealed into the app.
-# macOS leaves ad-hoc signed widgets out of the widget gallery; set SIGN_IDENTITY to a
-# code signing identity (see `security find-identity -v -p codesigning`) to make it show.
+# Set SIGN_IDENTITY to a code signing identity (see `security find-identity -v -p
+# codesigning`) to sign with it instead of ad-hoc.
 SIGN_IDENTITY=${SIGN_IDENTITY:--}
 if ! { codesign --force --sign "$SIGN_IDENTITY" --entitlements macos/Widget/AgentTreeWidget.entitlements "$WIDGET" \
        && codesign --force --sign "$SIGN_IDENTITY" "$OUT_APP"; }; then
