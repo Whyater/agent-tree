@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notch: NotchPanelController!
     private let watcher = LogWatcher(debounce: 2)
     private var fullView: FullViewWindowController?
+    /// The user closed the full view; a server restart then shouldn't bring it back.
+    private var fullViewClosed = false
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private let env = ProcessInfo.processInfo.environment
@@ -19,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let fixtures: URL? = backend.isMock ? fixturesDir() : nil
         store = Store(api: APIClient(mockFixtures: fixtures))
+        store.isWatched = { [weak self] in self?.notch.isOpen == true || self?.settingsWindow?.isVisible == true }
         statusItem = StatusItemController(store: store)
         notch = NotchPanelController(store: store, actions: actions)
         statusItem.onClick = { [weak self] in self?.notch.toggleFromClick() }
@@ -112,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { await self.store.scan() }
             }
             watcher.start()
-            if prefs.mode == .desktop, fullView?.window?.isVisible == true || fullView == nil {
+            if prefs.mode == .desktop, fullView?.window?.isVisible == true || (fullView == nil && !fullViewClosed) {
                 openFullView(hash: nil)
             }
         case .failed(let msg):
@@ -153,6 +156,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch.close()
         let fv = fullView ?? FullViewWindowController()
         fullView = fv
+        fullViewClosed = false
+        // Let the web view go with the window: a closed dashboard would otherwise keep a
+        // WebKit process alive and keep polling the server.
+        fv.onClose = { [weak self, weak fv] in
+            DispatchQueue.main.async {
+                guard let self = self, let fv = fv, self.fullView === fv, fv.window?.isVisible != true else { return }
+                self.fullView = nil
+                self.fullViewClosed = true
+            }
+        }
         fv.show(base: backend.webURL, hash: hash ?? "#/")
     }
 

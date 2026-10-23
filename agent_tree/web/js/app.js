@@ -342,14 +342,20 @@ document.addEventListener("keydown", (e) => {
 // ----------------------------------------------------------------- boot
 
 window.addEventListener("hashchange", route);
+// Nothing polls while the page is hidden (minimized window, background tab); it
+// catches up as soon as it is shown again.
 setInterval(() => {
-  loadMeta();
+  if (!document.hidden) loadMeta();
 }, 30000);
 setInterval(() => {
   // keep relative times fresh without a refetch
+  if (document.hidden) return;
   renderTopbar();
   renderStatus();
 }, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) loadMeta();
+});
 
 renderTopbar();
 renderStatus();
