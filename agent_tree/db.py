@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS nodes (
 CREATE INDEX IF NOT EXISTS nodes_parent ON nodes(parent_id);
 CREATE INDEX IF NOT EXISTS nodes_tree ON nodes(tree_id);
 CREATE INDEX IF NOT EXISTS nodes_session ON nodes(session_id);
+-- Every scan looks up each log file's nodes by file, so this must not be a table scan.
+CREATE INDEX IF NOT EXISTS nodes_file ON nodes(raw_file);
 
 CREATE TABLE IF NOT EXISTS usage (
     source        TEXT NOT NULL,

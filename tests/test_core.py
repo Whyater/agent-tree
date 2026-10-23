@@ -67,6 +67,23 @@ class PricingTests(unittest.TestCase):
         self.assertAlmostEqual(self.book.cost("claude-opus-5-5", 1_000_000, 0, 0, 1_000_000), 24.0)
         self.assertAlmostEqual(self.book.cost("claude-opus-5-5", 0, 1_000_000, 1_000_000, 0), 5.2)
 
+    def test_price_fingerprint_skips_unchanged_rows(self):
+        class CountingBook:
+            fingerprint = "same"
+            def __init__(self):
+                self.calls = 0
+            def cost(self, *args):
+                self.calls += 1
+                return 1.0
+
+        with TempIndex() as t:
+            db.put_usage(t.conn, "codex", "u1", node_id="cx:T", ts="2026-10-23T00:00:00Z", model="gpt-6.1-sol", input=1)
+            t.conn.commit()
+            book = CountingBook()
+            indexer.price_usage(t.conn, book, t.cfg)
+            indexer.price_usage(t.conn, book, t.cfg)
+            self.assertEqual(book.calls, 1)
+
     def test_aliases_prefixes_and_dates(self):
         self.assertIsNotNone(self.book.lookup("opus"))
         self.assertIsNotNone(self.book.lookup("anthropic/claude-opus-5-5"))
@@ -323,6 +340,26 @@ class ServerTests(unittest.TestCase):
 
 
 class ReviewRegressionTests(unittest.TestCase):
+    def test_scan_without_file_changes_refreshes_running_status(self):
+        """A quiet scan still updates clock-based running status."""
+        with TempIndex() as t:
+            db.upsert_node(
+                t.conn,
+                "cc:stale",
+                session_id="cc:stale",
+                source="claude-code",
+                kind="root",
+                started="2020-01-01T00:00:00Z",
+                ended="2020-01-01T00:00:00Z",
+                status="running",
+            )
+            t.conn.commit()
+
+            stats = indexer._scan(t.conn, t.cfg, full=False, only=None)
+
+            self.assertTrue(stats)
+            self.assertEqual(t.conn.execute("SELECT status FROM nodes WHERE id='cc:stale'").fetchone()[0], "done")
+
     def test_cycle_members_still_get_rollups(self):
         with TempIndex() as t:
             db.upsert_node(t.conn, "cx:X", source="codex", kind="subagent", parent_hint="cx:Y")
@@ -443,3 +480,15 @@ class UnresolvedWrapperCallTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SchemaIndexTests(unittest.TestCase):
+    def test_nodes_are_looked_up_by_file_through_an_index(self):
+        # Every scan asks for each log file's nodes; a table scan here cost seconds per scan.
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            conn = db.connect(Path(d) / "index.sqlite")
+            plan = " ".join(str(r[-1]) for r in conn.execute(
+                "EXPLAIN QUERY PLAN SELECT id, session_id, kind FROM nodes WHERE raw_file=?", ("x",)))
+            self.assertIn("nodes_file", plan)

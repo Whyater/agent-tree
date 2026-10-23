@@ -27,7 +27,8 @@ import os
 import tempfile
 from datetime import datetime, timedelta, timezone
 
-from . import queries
+from . import cache, queries
+from .db import get_meta
 from .export import node_label
 
 SCHEMA = 1
@@ -42,7 +43,10 @@ def _cost(money: dict) -> float | None:
 
 
 def build(conn, cfg) -> dict:
-    summary = queries.summary(conn, cfg)
+    generation = get_meta(conn, "last_scan") or ""
+    local_date = queries.datetime.now(queries.tz(cfg)).date().isoformat()
+    key = (str(cfg.db_path), "summary", (), generation, local_date)
+    summary = cache.read_cache.get_or_compute(key, lambda: queries.summary(conn, cfg))
     totals = {name: {"tokens": p["tokens"]["total"], "cost": _cost(p["money"])}
               for name, p in summary["periods"].items()}
     running = [

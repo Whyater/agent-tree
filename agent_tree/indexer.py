@@ -272,7 +272,7 @@ def resolve(conn: sqlite3.Connection, cfg: Config, prices: PriceBook | None = No
             for nid in nodes
         ],
     )
-    price_usage(conn, prices)
+    price_usage(conn, prices, cfg)
     rollup(conn, cfg, nodes, parent, children, hidden)
     from .flags import evaluate  # late import: flags reads the resolved tables
     evaluate(conn, cfg)
@@ -312,14 +312,29 @@ def _recent(ts: str | None, now: datetime) -> bool:
     return -FUTURE_SKEW <= age < RUNNING_WINDOW
 
 
-def price_usage(conn: sqlite3.Connection, prices: PriceBook) -> None:
-    """(Re)price every usage row. Cheap enough to do on each resolve, and it
-    keeps estimates in step with prices.toml edits."""
+def price_usage(conn: sqlite3.Connection, prices: PriceBook, cfg: Config | None = None) -> None:
+    """Price new or changed usage rows and refresh when prices.toml changes."""
     updates = []
-    for r in conn.execute("SELECT source, key, model, input, cached_input, cache_write, output FROM usage"):
+    # New or changed usage rows clear cost. When the price book is unchanged,
+    # only those rows need recalculation. A changed fingerprint forces a full
+    # pass so edits to prices.toml take effect immediately.
+    fingerprint = getattr(prices, "fingerprint", None)
+    previous = db.get_meta(conn, "price_fingerprint") if cfg is not None else None
+    where = "" if fingerprint != previous else " WHERE cost IS NULL OR family IS NULL"
+    for r in conn.execute(
+        "SELECT source, key, model, input, cached_input, cache_write, output, cost, family FROM usage" + where
+    ):
         cost = prices.cost(r["model"], r["input"], r["cached_input"], r["cache_write"], r["output"])
-        updates.append((cost, model_family(r["model"]), r["source"], r["key"]))
-    conn.executemany("UPDATE usage SET cost=?, family=? WHERE source=? AND key=?", updates)
+        family = model_family(r["model"])
+        # Avoid rewriting rows whose estimate and family are already current.
+        # This keeps incremental scans from dirtying the whole usage table while
+        # still picking up pricing changes because the computed value is compared.
+        if cost != r["cost"] or family != r["family"]:
+            updates.append((cost, family, r["source"], r["key"]))
+    if updates:
+        conn.executemany("UPDATE usage SET cost=?, family=? WHERE source=? AND key=?", updates)
+    if cfg is not None:
+        db.set_meta(conn, "price_fingerprint", fingerprint or "")
 
 
 def rollup(conn, cfg: Config, nodes, parent, children, hidden) -> None:
