@@ -155,6 +155,7 @@ Details on data sources, costs, flags and privacy are in the [guide](docs/GUIDE.
 - The file formats it reads aren't public APIs and can change with any Claude Code, Codex or
   T3 Code update. `att doctor` reports anything it couldn't read.
 - The widget shows the snapshot the app writes. It only updates while Agent Tree is running. When Agent Tree quits, the widget stops showing anything as working.
+- macOS leaves ad-hoc signed widgets out of the widget gallery, and release builds are ad-hoc signed. To get the widget, build from source with `SIGN_IDENTITY` set to your own code signing identity (a free Apple Development certificate works).
 - The menu bar app is macOS only (13 or newer). The command line and dashboard also run on Linux.
 
 ---

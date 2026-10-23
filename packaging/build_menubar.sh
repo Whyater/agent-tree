@@ -115,8 +115,11 @@ printf 'APPL????' > "$OUT_APP/Contents/PkgInfo"
 # Ad-hoc signature so the dev build launches cleanly; build_app.sh re-signs the full bundle.
 # A signing failure stops the build unless ALLOW_UNSIGNED=1 is set.
 # The widget is signed first, with its sandbox entitlements, then sealed into the app.
-if ! { codesign --force --sign - --entitlements macos/Widget/AgentTreeWidget.entitlements "$WIDGET" \
-       && codesign --force --sign - "$OUT_APP"; }; then
+# macOS leaves ad-hoc signed widgets out of the widget gallery; set SIGN_IDENTITY to a
+# code signing identity (see `security find-identity -v -p codesigning`) to make it show.
+SIGN_IDENTITY=${SIGN_IDENTITY:--}
+if ! { codesign --force --sign "$SIGN_IDENTITY" --entitlements macos/Widget/AgentTreeWidget.entitlements "$WIDGET" \
+       && codesign --force --sign "$SIGN_IDENTITY" "$OUT_APP"; }; then
   if [ "${ALLOW_UNSIGNED:-0}" = "1" ]; then
     echo "warning: codesign failed; continuing unsigned because ALLOW_UNSIGNED=1" >&2
   else
