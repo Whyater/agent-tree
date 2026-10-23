@@ -43,6 +43,41 @@ xcrun swiftc -O -swift-version 5 \
   -o "$OUT_APP/Contents/MacOS/AgentTree" \
   macos/Sources/*.swift
 
+# Desktop widget (WidgetKit extension, macOS 14 and later). It shares the tree mark
+# from Theme.swift and reads ~/.agent-tree/live.json, nothing else.
+WIDGET="$OUT_APP/Contents/PlugIns/AgentTreeWidget.appex"
+mkdir -p "$WIDGET/Contents/MacOS"
+echo "Compiling widget ($ARCH)"
+xcrun swiftc -O -swift-version 5 -parse-as-library -application-extension \
+  -sdk "$SDK" -target "$ARCH-apple-macos14.0" \
+  -module-name AgentTreeWidget \
+  -o "$WIDGET/Contents/MacOS/AgentTreeWidget" \
+  macos/Widget/*.swift macos/Sources/Theme.swift
+
+cat > "$WIDGET/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleExecutable</key><string>AgentTreeWidget</string>
+  <key>CFBundleIdentifier</key><string>io.github.whyater.agent-tree.widget</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>Agent Tree Widget</string>
+  <key>CFBundleDisplayName</key><string>Agent Tree</string>
+  <key>CFBundlePackageType</key><string>XPC!</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSHumanReadableCopyright</key><string>MIT License</string>
+  <key>NSExtension</key>
+  <dict>
+    <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
+  </dict>
+</dict>
+</plist>
+PLIST
+
 cp packaging/AppIcon.icns "$OUT_APP/Contents/Resources/AppIcon.icns"
 mkdir -p "$OUT_APP/Contents/Resources/Fixtures"
 cp macos/Fixtures/*.json "$OUT_APP/Contents/Resources/Fixtures/"
@@ -79,7 +114,9 @@ printf 'APPL????' > "$OUT_APP/Contents/PkgInfo"
 
 # Ad-hoc signature so the dev build launches cleanly; build_app.sh re-signs the full bundle.
 # A signing failure stops the build unless ALLOW_UNSIGNED=1 is set.
-if ! codesign --force --sign - "$OUT_APP"; then
+# The widget is signed first, with its sandbox entitlements, then sealed into the app.
+if ! { codesign --force --sign - --entitlements macos/Widget/AgentTreeWidget.entitlements "$WIDGET" \
+       && codesign --force --sign - "$OUT_APP"; }; then
   if [ "${ALLOW_UNSIGNED:-0}" = "1" ]; then
     echo "warning: codesign failed; continuing unsigned because ALLOW_UNSIGNED=1" >&2
   else

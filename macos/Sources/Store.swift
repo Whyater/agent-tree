@@ -46,6 +46,12 @@ final class Store: ObservableObject {
     let api: APIClient
     private var timer: Timer?
     private var refreshing = false
+    private var lastRefresh = Date.distantPast
+    private let widget = WidgetRefresher()
+    /// Whether anything that shows this data is on screen. When nothing is, the timer
+    /// refreshes only every few minutes; scans still refresh right away.
+    var isWatched: () -> Bool = { true }
+    static let backgroundRefresh: TimeInterval = 300
 
     init(api: APIClient) {
         self.api = api
@@ -64,8 +70,13 @@ final class Store: ObservableObject {
     func startPolling(every seconds: TimeInterval = 30) {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.refresh() }
+            Task { @MainActor in
+                guard let self = self else { return }
+                if !self.isWatched(), Date().timeIntervalSince(self.lastRefresh) < Self.backgroundRefresh { return }
+                await self.refresh()
+            }
         }
+        timer?.tolerance = seconds / 3
         Task { await refresh() }
     }
 
@@ -79,7 +90,7 @@ final class Store: ObservableObject {
         if case .starting = connection { return }
         if refreshing { return }
         refreshing = true
-        defer { refreshing = false }
+        defer { refreshing = false; lastRefresh = Date() }
 
         async let metaR = try? api.get("/api/meta", as: Meta.self)
         async let summaryR = fetchSummary()
@@ -100,6 +111,10 @@ final class Store: ObservableObject {
             recent = Array(t.threads.sorted { last($0) > last($1) }.prefix(3))
         }
         await loadTree(preferring: running.first?.threadId ?? recent.first?.id)
+        if connection == .live {
+            let working = (tree?.nodes ?? []).filter { $0.isRunning }.map(\.id)
+            widget.update((running.map(\.threadId).sorted() + ["|"] + working.sorted()).joined(separator: ","))
+        }
     }
 
     private func loadTree(preferring id: String?) async {

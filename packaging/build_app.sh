@@ -52,7 +52,11 @@ PLIST="$APP/Contents/Info.plist"
 PYTHONPATH="$RES/app" "$RES/python/bin/python3" -c "import agent_tree.cli, agent_tree.server; print('bundle ok')"
 
 # Ad-hoc signature so Gatekeeper sees a consistent bundle (not notarized).
+# --deep signs the bundled Python too, but drops the widget's sandbox entitlements, so
+# the widget is signed again with them and the app re-sealed around it.
 codesign --force --deep --sign - "$APP"
+codesign --force --sign - --entitlements macos/Widget/AgentTreeWidget.entitlements "$APP/Contents/PlugIns/AgentTreeWidget.appex"
+codesign --force --sign - "$APP"
 
 DMG="$OUT/AgentTree-${VERSION}-${ARCH}.dmg"
 STAGE="$OUT/$ARCH/dmg"
