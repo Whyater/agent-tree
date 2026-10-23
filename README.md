@@ -90,7 +90,8 @@ the menu bar. It goes away when you move the pointer off it. It shows:
   [Vorssaint](https://github.com/vorssaint/vorssaint-utils)'s AI Agents panel. Click the card
   to open the full view. This needs a Vorssaint build with the Agent Tree card; the
   [guide](docs/GUIDE.md#inside-vorssaint) shows how to build one. In this mode Agent Tree's own
-  drop-down stays off, so the two never overlap.
+  drop-down stays off, so the two never overlap. When Vorssaint starts and the card is on, it
+  also starts Agent Tree in the background. The card is empty without it.
 - **Desktop app**: a normal window with a Dock icon. The drop-down panel is optional here.
 
 **Full view.** The whole history in one window: every thread across every project, the
@@ -100,6 +101,12 @@ exports (JSON, CSV, or a Markdown tree for your notes).
 <p align="center">
   <img src="docs/screenshots/home-dark.png" alt="The Agent Tree overview: spending for today, 7 and 30 days, top models, daily tokens and flags" width="820">
 </p>
+
+**Desktop widget** (macOS 14 or newer). Right-click the desktop, choose Edit Widgets and add
+Agent Tree to see working threads, today's spending and the live tree without opening
+anything. It comes in small, medium and large. It doesn't poll. macOS wakes it when the set of
+working agents changes (at most once a minute), and otherwise every 10 minutes while agents
+work and every hour when nothing does.
 
 **Plan limits without the network.** Claude limits come from the Claude desktop app's own usage
 history and Codex limits from Codex's session logs. Reset times for Claude are estimates,
@@ -147,6 +154,7 @@ Details on data sources, costs, flags and privacy are in the [guide](docs/GUIDE.
   the middle of the menu bar.
 - The file formats it reads aren't public APIs and can change with any Claude Code, Codex or
   T3 Code update. `att doctor` reports anything it couldn't read.
+- The widget shows the snapshot the app writes. It only updates while Agent Tree is running. When Agent Tree quits, the widget stops showing anything as working.
 - The menu bar app is macOS only (13 or newer). The command line and dashboard also run on Linux.
 
 ---
