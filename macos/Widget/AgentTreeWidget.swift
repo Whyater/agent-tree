@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -20,13 +21,15 @@ struct AgentTreeWidget: Widget {
         }
         .configurationDisplayName("Agent Tree")
         .description("Working agents, today's spend and the live tree.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
 
 struct LiveEntry: TimelineEntry {
     let date: Date
     let snapshot: LiveSnapshot?
+    /// Which page of the tree to show (large sizes only).
+    var treePage = 0
 
     /// Running parts, or none once the snapshot is too old to vouch for them.
     var running: [LiveSnapshot.Running] {
@@ -41,23 +44,31 @@ struct LiveProvider: TimelineProvider {
     func placeholder(in context: Context) -> LiveEntry { LiveEntry(date: Date(), snapshot: nil) }
 
     func getSnapshot(in context: Context, completion: @escaping (LiveEntry) -> Void) {
-        completion(LiveEntry(date: Date(), snapshot: LiveSnapshot.load()))
+        completion(Self.entry(at: Date(), snapshot: LiveSnapshot.load(), family: context.family))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<LiveEntry>) -> Void) {
         let now = Date()
         let snapshot = LiveSnapshot.load()
-        var entries = [LiveEntry(date: now, snapshot: snapshot)]
+        var entries = [Self.entry(at: now, snapshot: snapshot, family: context.family)]
         // If Agent Tree quits, the same file stops vouching for running agents at this
         // moment, so a second entry shows that without waking the widget again.
         if let g = snapshot?.generated, snapshot?.isFresh(at: now) == true {
-            entries.append(LiveEntry(date: g.addingTimeInterval(LiveSnapshot.freshFor), snapshot: snapshot))
+            entries.append(Self.entry(at: g.addingTimeInterval(LiveSnapshot.freshFor), snapshot: snapshot, family: context.family))
         }
         // Token and cost totals drift while agents work; the app only asks for a reload
         // when the set of running agents changes, so look again now and then.
         let busy = entries[0].isLive
         let next = now.addingTimeInterval(busy ? 10 * 60 : 60 * 60)
         completion(Timeline(entries: entries, policy: .after(next)))
+    }
+
+    static func entry(at date: Date, snapshot: LiveSnapshot?, family: WidgetFamily) -> LiveEntry {
+        var e = LiveEntry(date: date, snapshot: snapshot)
+        if let t = snapshot?.tree, let rows = TreeSection.rows(for: family) {
+            e.treePage = TreePager.page(for: t, rows: rows, live: t.live && e.isLive)
+        }
+        return e
     }
 }
 
@@ -74,6 +85,7 @@ struct AgentTreeWidgetView: View {
             switch family {
             case .systemSmall: SmallView(entry: entry)
             case .systemMedium: MediumView(entry: entry)
+            case .systemExtraLarge: ExtraLargeView(entry: entry)
             default: LargeView(entry: entry)
             }
         }
@@ -352,7 +364,6 @@ private struct NodeRow: View {
 
 private struct LargeView: View {
     let entry: LiveEntry
-    static let rowLimit = 9
 
     var body: some View {
         let s = entry.snapshot
@@ -367,54 +378,132 @@ private struct LargeView: View {
             }
             Divider()
             if let t = s?.tree {
-                treeSection(t)
+                TreeSection(entry: entry, tree: t, rows: TreeSection.largeRows)
             }
             Spacer(minLength: 0)
         }
     }
+}
 
-    @ViewBuilder
-    private func treeSection(_ t: LiveSnapshot.Tree) -> some View {
-        let live = t.live && entry.isLive
-        let rows = Self.rows(t.nodes)
+/// Twice as wide as large: the summary and working threads on the left, a taller page
+/// of the tree on the right.
+private struct ExtraLargeView: View {
+    let entry: LiveEntry
+
+    var body: some View {
+        let s = entry.snapshot
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                Header(entry: entry)
+                WorkingCount(entry: entry, size: 28)
+                HStack(alignment: .top, spacing: 18) {
+                    Spend(label: "Today", period: s?.totals["today"])
+                    Spend(label: "7 days", period: s?.totals["week"])
+                }
+                Divider()
+                if entry.isLive {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(entry.running.prefix(4), id: \.threadId) { ThreadRow(run: $0) }
+                        if entry.running.count > 4 {
+                            Text("+\(entry.running.count - 4) more")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                } else if let t = s?.tree {
+                    LastThread(tree: t)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(width: 250, alignment: .leading)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 0) {
+                if let t = s?.tree {
+                    TreeSection(entry: entry, tree: t, rows: TreeSection.extraLargeRows)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// One page of the tree in file (depth-first) order, with buttons to page through the
+/// rest when it doesn't fit.
+private struct TreeSection: View {
+    let entry: LiveEntry
+    let tree: LiveSnapshot.Tree
+    let rows: Int
+
+    static let largeRows = 9
+    static let extraLargeRows = 15
+
+    static func rows(for family: WidgetFamily) -> Int? {
+        switch family {
+        case .systemLarge: return largeRows
+        case .systemExtraLarge: return extraLargeRows
+        default: return nil
+        }
+    }
+
+    var body: some View {
+        let live = tree.live && entry.isLive
+        let total = tree.nodes.count
+        let pages = TreePager.pageCount(total, rows: rows)
+        let page = min(entry.treePage, pages - 1)
+        let shown = tree.nodes.dropFirst(page * rows).prefix(rows)
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 4) {
                 Text(live ? "Live tree" : "Last tree")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
-                Text("· " + (t.title ?? t.projectName ?? "Untitled thread"))
+                Text("· " + (tree.title ?? tree.projectName ?? "Untitled thread"))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+                Spacer(minLength: 4)
+                if pages > 1 {
+                    Pager(page: page, pages: pages, rows: rows, total: total)
+                }
             }
-            ForEach(rows, id: \.id) { NodeRow(node: $0, working: live && $0.running) }
-            let hidden = (t.nodeCount ?? t.nodes.count) - rows.count
-            if hidden > 0 {
-                Text("+\(hidden) more")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-            }
+            ForEach(Array(shown), id: \.id) { NodeRow(node: $0, working: live && $0.running) }
+        }
+    }
+}
+
+private struct Pager: View {
+    let page: Int
+    let pages: Int
+    let rows: Int
+    let total: Int
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Text("\(page * rows + 1)–\(min(total, (page + 1) * rows)) of \(total)")
+                .font(.system(size: 10).monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.trailing, 2)
+            step(-1, "chevron.up", "Previous page", enabled: page > 0)
+            step(1, "chevron.down", "Next page", enabled: page < pages - 1)
         }
     }
 
-    /// Up to `rowLimit` nodes in file order: the root, then working nodes with the
-    /// branch above them, then the rest from the top.
-    static func rows(_ nodes: [LiveSnapshot.Node]) -> [LiveSnapshot.Node] {
-        guard let root = nodes.first else { return [] }
-        let byId = Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        var chosen: Set<String> = [root.id]
-        func add(_ n: LiveSnapshot.Node) {
-            var chain: [String] = []
-            var cur: LiveSnapshot.Node? = n
-            while let c = cur, !chosen.contains(c.id) {
-                chain.append(c.id)
-                cur = c.parentId.flatMap { byId[$0] }
-            }
-            if chosen.count + chain.count <= rowLimit { chain.forEach { chosen.insert($0) } }
+    private func step(_ delta: Int, _ symbol: String, _ label: String, enabled: Bool) -> some View {
+        Button(intent: PageTreeIntent(step: delta, rows: rows)) {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .bold))
+                .frame(width: 18, height: 16)
+                .background(RoundedRectangle(cornerRadius: 4).fill(.quaternary.opacity(enabled ? 1 : 0.4)))
+                .contentShape(Rectangle())
         }
-        for n in nodes where n.running { add(n) }
-        for n in nodes where chosen.count < rowLimit { add(n) }
-        return nodes.filter { chosen.contains($0.id) }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? .secondary : .quaternary)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 }
 

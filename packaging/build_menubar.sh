@@ -32,6 +32,9 @@ fi
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' agent_tree/__init__.py)"
 VERSION="${VERSION:-0.0.0}"
+# A build number that grows with every build. macOS only re-reads a widget's sizes when
+# its bundle version changes.
+BUILD="$(date -u +%y%m%d%H%M)"
 
 rm -rf "$OUT_APP"
 mkdir -p "$OUT_APP/Contents/MacOS" "$OUT_APP/Contents/Resources"
@@ -50,12 +53,42 @@ mkdir -p "$WIDGET/Contents/MacOS"
 echo "Compiling widget ($ARCH)"
 # Like Xcode, start the extension in _NSExtensionMain; with the default entry point the
 # widget exits as soon as macOS asks it for its sizes and never reaches the gallery.
-xcrun swiftc -O -swift-version 5 -parse-as-library -application-extension \
-  -Xlinker -e -Xlinker _NSExtensionMain \
+# Compiled in one step and linked in another so the compiler also writes the constant
+# values the App Intents tool reads (the tree's page buttons are an App Intent).
+WTMP=$(mktemp -d)
+trap 'rm -rf "$WTMP"' EXIT
+printf '["AppIntent"]' > "$WTMP/protocols.json"
+WIDGET_SOURCES=("$ROOT"/macos/Widget/*.swift "$ROOT/macos/Sources/Theme.swift")
+xcrun swiftc -O -swift-version 5 -parse-as-library -application-extension -wmo \
   -sdk "$SDK" -target "$ARCH-apple-macos14.0" \
   -module-name AgentTreeWidget \
-  -o "$WIDGET/Contents/MacOS/AgentTreeWidget" \
-  macos/Widget/*.swift macos/Sources/Theme.swift
+  -emit-const-values-path "$WTMP/AgentTreeWidget.swiftconstvalues" \
+  -Xfrontend -const-gather-protocols-file -Xfrontend "$WTMP/protocols.json" \
+  -c -o "$WTMP/AgentTreeWidget.o" "${WIDGET_SOURCES[@]}"
+xcrun swiftc -application-extension -sdk "$SDK" -target "$ARCH-apple-macos14.0" \
+  -Xlinker -e -Xlinker _NSExtensionMain \
+  -o "$WIDGET/Contents/MacOS/AgentTreeWidget" "$WTMP/AgentTreeWidget.o"
+
+# The App Intents metadata ships with Xcode only. Without it the widget still works,
+# but its page buttons do nothing.
+if xcrun --find appintentsmetadataprocessor >/dev/null 2>&1; then
+  printf '%s\n' "${WIDGET_SOURCES[@]}" > "$WTMP/sources.txt"
+  echo "$WTMP/AgentTreeWidget.swiftconstvalues" > "$WTMP/constvalues.txt"
+  mkdir -p "$WIDGET/Contents/Resources"
+  if ! xcrun appintentsmetadataprocessor --force --quiet-warnings \
+    --output "$WIDGET/Contents/Resources" \
+    --toolchain-dir "$(dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")")" \
+    --module-name AgentTreeWidget --sdk-root "$SDK" \
+    --xcode-version "$(xcodebuild -version | awk '/Build version/ {print $3}')" \
+    --platform-family macOS --deployment-target 14.0 --target-triple "$ARCH-apple-macos14.0" \
+    --source-file-list "$WTMP/sources.txt" --swift-const-vals-list "$WTMP/constvalues.txt" \
+    >"$WTMP/appintents.log" 2>&1; then
+    cat "$WTMP/appintents.log" >&2
+    echo "warning: App Intents metadata failed; the widget's page buttons won't work" >&2
+  fi
+else
+  echo "warning: appintentsmetadataprocessor not found (needs Xcode); the widget's page buttons won't work" >&2
+fi
 
 cat > "$WIDGET/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -70,7 +103,7 @@ cat > "$WIDGET/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Agent Tree</string>
   <key>CFBundlePackageType</key><string>XPC!</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
-  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$BUILD</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHumanReadableCopyright</key><string>MIT License</string>
   <key>NSExtension</key>
@@ -98,7 +131,7 @@ cat > "$OUT_APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Agent Tree</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
-  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$BUILD</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><false/>

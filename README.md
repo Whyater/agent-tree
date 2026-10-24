@@ -104,7 +104,8 @@ exports (JSON, CSV, or a Markdown tree for your notes).
 
 **Desktop widget** (macOS 14 or newer). Right-click the desktop, choose Edit Widgets and add
 Agent Tree to see working threads, today's spending and the live tree without opening
-anything. It comes in small, medium and large. It doesn't poll. macOS wakes it when the set of
+anything. It comes in small, medium, large and extra large. The large sizes show the tree a page
+at a time, with buttons to page through the rest. It doesn't poll. macOS wakes it when the set of
 working agents changes (at most once a minute), and otherwise every 10 minutes while agents
 work and every hour when nothing does.
 

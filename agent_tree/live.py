@@ -32,7 +32,7 @@ from .db import get_meta
 from .export import node_label
 
 SCHEMA = 1
-MAX_NODES = 60
+MAX_NODES = 200  # the most the Vorssaint card accepts
 RUNNING_WINDOW = timedelta(minutes=10)
 
 
